@@ -128,8 +128,8 @@ function setActiveNav(id) {
 const navFeed = document.getElementById('nav-feed');
 const navDiscover = document.getElementById('nav-discover');
 const navLikes = document.getElementById('nav-likes');
-if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
-if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
+if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); clearPostParamInUrl(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
+if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); clearPostParamInUrl(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
 if (navLikes) navLikes.onclick = (e) => {
     e.preventDefault();
     setActiveNav('nav-likes');
@@ -341,19 +341,19 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
                 : defaultAvatar;
             html += `
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
+                <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
                     <div class="p-4">
                         <div class="flex items-start">
                             <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
                             <div class="ml-3 flex-1">
                                 <div class="flex items-center">
-                                    <button class="post-title-link font-medium text-gray-900" data-post-uri="${String(post.uri)}">${displayName}</button>
-                                    <span class="mx-1 text-gray-500">·</span>
-                                    <span class="text-sm text-gray-500">${time}</span>
+                                    <span class="font-medium text-gray-900 dark:text-gray-100">${displayName}</span>
+                                    <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
                                     ${deleteBtnHtml}
                                     ${followBtnHtml}
                                 </div>
-                                <p class="mt-1 text-gray-700">${text}</p>
+                                <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${text}</button>
                                 ${audioHtml}
                                 <div class="mt-3 flex items-center space-x-4">
                                     ${likeBtnHtml}
@@ -870,7 +870,7 @@ function setPostParamInUrl(postUri) {
 function clearPostParamInUrl() {
     const url = new URL(window.location.href);
     url.searchParams.delete('post');
-    window.history.pushState({}, '', url);
+    window.history.replaceState({}, '', url);
 }
 
 async function renderSinglePostView(postUri) {
@@ -973,18 +973,17 @@ async function renderSinglePostView(postUri) {
     document.getElementById('single-post-content').innerHTML = `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out max-w-2xl mx-auto mt-8 mb-8">
             <div class="p-4">
-                <button id='close-single-post' class='mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 float-right'>Back to Feed</button>
                 <div class="flex items-start">
                     <img class="h-14 w-14 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
                     <div class="ml-4 flex-1">
                         <div class="flex items-center">
-                            <button class="post-title-link font-bold text-lg text-gray-900" data-post-uri="${String(post.uri)}">${displayName}</button>
-                            <span class="mx-2 text-gray-500">·</span>
-                            <span class="text-sm text-gray-500">${time}</span>
+                            <span class="font-bold text-lg text-gray-900 dark:text-gray-100">${displayName}</span>
+                            <span class="mx-2 text-gray-500 dark:text-gray-400">·</span>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
                             ${deleteBtnHtml}
                             ${followBtnHtml}
                         </div>
-                        <p class="mt-2 text-gray-800 text-lg">${text}</p>
+                        <button class="post-title-link block font-bold text-xl text-gray-900 dark:text-white mt-2 mb-2" data-post-uri="${String(post.uri)}">${text}</button>
                         ${audioHtml}
                         <div class="mt-4 flex items-center space-x-6">
                             ${likeBtnHtml}
