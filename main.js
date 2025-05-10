@@ -1,6 +1,7 @@
 import { BskyAgent } from 'https://esm.sh/@atproto/api';
 
-const agent = new BskyAgent({ service: 'https://bsky.social' });
+// Change agent to let, not const
+let agent = null;
 
 const loginForm = document.getElementById('login-form');
 const loginBtn = document.getElementById('login-btn');
@@ -17,6 +18,10 @@ if (uploadForm) uploadForm.style.display = 'none';
 // On page load, try to resume session
 window.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = 'blur(2px)';
+    const savedPds = localStorage.getItem('bskyPds') || 'https://bsky.social';
+    const pdsInput = document.getElementById('pds-server');
+    if (pdsInput) pdsInput.value = savedPds;
+    agent = new BskyAgent({ service: savedPds });
     const savedSession = localStorage.getItem('bskySession');
     if (savedSession) {
         try {
@@ -25,8 +30,11 @@ window.addEventListener('DOMContentLoaded', async () => {
             document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
             setCurrentUserAvatar();
             const postParam = getPostParamFromUrl();
+            const artistParam = getArtistParamFromUrl();
             if (postParam) {
                 renderSinglePostView(postParam);
+            } else if (artistParam) {
+                renderArtistPage(artistParam);
             } else {
                 fetchSoundskyFeed();
             }
@@ -42,10 +50,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 loginBtn.addEventListener('click', async () => {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
+    const pdsInput = document.getElementById('pds-server');
+    const pds = pdsInput && pdsInput.value.trim() ? pdsInput.value.trim() : 'https://bsky.social';
     loginError.classList.add('hidden');
     loginBtn.disabled = true;
     loginBtn.textContent = 'Logging in...';
     try {
+        // Save PDS to localStorage
+        localStorage.setItem('bskyPds', pds);
+        // Create agent with selected PDS
+        agent = new BskyAgent({ service: pds });
         await agent.login({ identifier: username, password });
         // Save session to localStorage
         localStorage.setItem('bskySession', JSON.stringify(agent.session));
@@ -195,8 +209,8 @@ function setActiveNav(id) {
 const navFeed = document.getElementById('nav-feed');
 const navDiscover = document.getElementById('nav-discover');
 const navLikes = document.getElementById('nav-likes');
-if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); clearPostParamInUrl(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
-if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); clearPostParamInUrl(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
+if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
+if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
 if (navLikes) navLikes.onclick = (e) => {
     e.preventDefault();
     setActiveNav('nav-likes');
@@ -953,6 +967,13 @@ function clearPostParamInUrl() {
     window.history.replaceState({}, '', url);
 }
 
+function clearAllParamsInUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('post');
+    url.searchParams.delete('artist');
+    window.history.replaceState({}, '', url);
+}
+
 async function renderSinglePostView(postUri) {
     // Hide upload form in single mode
     const uploadForm = document.getElementById('create-audio-post');
@@ -1255,7 +1276,7 @@ async function renderSinglePostView(postUri) {
                                 collection,
                                 rkey,
                             });
-                            clearPostParamInUrl();
+                            clearAllParamsInUrl();
                             fetchSoundskyFeed();
                         } catch (err) {
                             alert('Failed to delete post: ' + (err.message || err));
@@ -1356,7 +1377,7 @@ async function renderSinglePostView(postUri) {
         // Show upload form again
         const uploadForm = document.getElementById('create-audio-post');
         if (uploadForm) uploadForm.style.display = '';
-        clearPostParamInUrl();
+        clearAllParamsInUrl();
         fetchSoundskyFeed();
     };
 }
@@ -1377,21 +1398,28 @@ function addSinglePostClickHandlers() {
     }, 0);
 }
 
-// --- On page load and popstate, check for ?post=... ---
+// --- On page load and popstate, check for ?post=... or ?artist=... ---
 window.addEventListener('DOMContentLoaded', async () => {
     const postParam = getPostParamFromUrl();
+    const artistParam = getArtistParamFromUrl();
     if (postParam) {
         renderSinglePostView(postParam);
+    } else if (artistParam) {
+        renderArtistPage(artistParam);
     }
 });
 window.addEventListener('popstate', () => {
     const postParam = getPostParamFromUrl();
+    const artistParam = getArtistParamFromUrl();
     if (postParam) {
         renderSinglePostView(postParam);
+    } else if (artistParam) {
+        renderArtistPage(artistParam);
     } else {
         const modal = document.getElementById('single-post-modal');
         if (modal) modal.style.display = 'none';
         document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
+        fetchSoundskyFeed();
     }
 });
 
@@ -1505,6 +1533,10 @@ if (!document.getElementById('volume-slider-style')) {
 
 // --- 3. Add renderArtistPage(did) ---
 async function renderArtistPage(did) {
+    // Set ?artist=... in the URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('artist', did);
+    window.history.pushState({}, '', url);
     // Hide upload form
     const uploadForm = document.getElementById('create-audio-post');
     if (uploadForm) uploadForm.style.display = 'none';
@@ -1964,6 +1996,7 @@ async function renderArtistPage(did) {
         if (window._soundskyLastView && window._soundskyLastView.type === 'single') {
             renderSinglePostView(window._soundskyLastView.postUri);
         } else {
+            clearAllParamsInUrl();
             fetchSoundskyFeed();
         }
     };
@@ -1999,3 +2032,8 @@ renderSinglePostView = async function(...args) {
     await origRenderSinglePostView.apply(this, args);
     addArtistLinkHandlers();
 };
+
+function getArtistParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('artist');
+}
