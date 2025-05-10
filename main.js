@@ -1051,7 +1051,7 @@ async function renderSinglePostView(postUri) {
         : defaultAvatar;
     // Render single post content in feed container
     document.getElementById('single-post-content').innerHTML = `
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out max-w-2xl mx-auto mt-8 mb-8">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-8 mb-8">
             <div class="p-4">
                 <div class="flex items-start">
                     <img class="h-14 w-14 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
@@ -1954,7 +1954,7 @@ async function renderArtistPage(did) {
             }, 0);
         }, 0);
     }
-    container.innerHTML = headerHtml + `<div class='max-w-2xl mx-auto'>${tracksHtml}</div>`;
+    container.innerHTML = headerHtml + `<div class='mx-auto'>${tracksHtml}</div>`;
     // Back button handler
     document.getElementById('artist-back-btn').onclick = () => {
         // Show upload form again if on home
