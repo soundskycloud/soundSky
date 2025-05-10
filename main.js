@@ -90,7 +90,7 @@ let nextCursor = null;
 
 // Sidebar navigation logic
 function setActiveNav(id) {
-    document.querySelectorAll('#nav-feed, #nav-discover, #nav-likes').forEach(el => {
+    document.querySelectorAll('#nav-feed, #nav-discover').forEach(el => {
         el.classList.remove('bg-blue-500', 'text-white');
         el.classList.add('text-gray-700');
     });
@@ -256,14 +256,11 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             const mimeType = fileEmbed.file.mimeType;
             audioWaveformId = `waveform-${post.cid}`;
             try {
-                const blobRes = await agent.api.com.atproto.sync.getBlob({
-                    did: user.did,
-                    cid: blobRef,
-                });
-                const blobData = blobRes.data.blob || blobRes.data;
-                const audioBlob = blobData instanceof Blob
-                  ? blobData
-                  : new Blob([blobData], { type: mimeType });
+                // Direct fetch to the public getBlob endpoint
+                const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+                const resp = await fetch(blobUrl);
+                if (!resp.ok) throw new Error('Blob fetch failed');
+                const audioBlob = await resp.blob();
                 audioBlobUrl = URL.createObjectURL(audioBlob);
             } catch (e) {
                 let ext = 'mp3';
