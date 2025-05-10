@@ -196,6 +196,15 @@ async function renderFeed(posts) {
             if (agent.session && agent.session.did === user.did) {
                 deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
             }
+            // Like and repost buttons
+            const liked = post.viewer && post.viewer.like;
+            const reposted = post.viewer && post.viewer.repost;
+            const likeCount = post.likeCount || 0;
+            const repostCount = post.repostCount || 0;
+            let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}">
+                <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
+            let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}">
+                <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
             feedContainer.innerHTML += `
                 <div class="bg-white rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out">
                     <div class="p-4">
@@ -210,6 +219,10 @@ async function renderFeed(posts) {
                                 </div>
                                 <p class="mt-1 text-gray-700">${text}</p>
                                 ${audioHtml}
+                                <div class="mt-3 flex items-center space-x-4">
+                                    ${likeBtnHtml}
+                                    ${repostBtnHtml}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -305,7 +318,7 @@ async function renderFeed(posts) {
             }, 0);
         }
     }
-    // After rendering all posts, add event listeners for delete buttons
+    // After rendering all posts, add event listeners for delete, like, and repost buttons
     setTimeout(() => {
         document.querySelectorAll('.delete-post-btn').forEach(btn => {
             btn.onclick = async (e) => {
@@ -332,6 +345,40 @@ async function renderFeed(posts) {
                         console.error('Delete post error:', err);
                         alert('Failed to delete post: ' + (err.message || err));
                     }
+                }
+            };
+        });
+        document.querySelectorAll('.like-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const uri = btn.getAttribute('data-uri');
+                const cid = btn.getAttribute('data-cid');
+                const liked = btn.getAttribute('data-liked') === 'true';
+                try {
+                    if (!liked) {
+                        await agent.like(uri, cid);
+                    } else {
+                        await agent.deleteLike(uri, cid);
+                    }
+                    fetchSoundskyFeed();
+                } catch (err) {
+                    alert('Failed to like/unlike post: ' + (err.message || err));
+                }
+            };
+        });
+        document.querySelectorAll('.repost-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const uri = btn.getAttribute('data-uri');
+                const cid = btn.getAttribute('data-cid');
+                const reposted = btn.getAttribute('data-reposted') === 'true';
+                try {
+                    if (!reposted) {
+                        await agent.repost(uri, cid);
+                    } else {
+                        await agent.deleteRepost(uri, cid);
+                    }
+                    fetchSoundskyFeed();
+                } catch (err) {
+                    alert('Failed to repost/unrepost post: ' + (err.message || err));
                 }
             };
         });
