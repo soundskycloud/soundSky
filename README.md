@@ -13,7 +13,7 @@
 
 ## Live Demo
 <a href="https://soundsky.glitch.me">
-<img src="https://github.com/user-attachments/assets/ddf26b8a-0371-4aca-b532-2141d92063ed">
+<img src="https://github.com/user-attachments/assets/5883bb43-d087-45ad-8a31-87e6ef0162b4">
 </a>
 
 
