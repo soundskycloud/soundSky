@@ -4,5 +4,6 @@
 
 ### POC/Demo
 <a href="https://soundsky.glitch.me">
-<img src="https://github.com/user-attachments/assets/b0479e59-0556-4fa1-a0e9-ce54c2e725ce">
+<img src="https://github.com/user-attachments/assets/5a7bdfbc-2ce8-49f7-802d-80f177ac8bf3">
 </a>
+
