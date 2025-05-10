@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SoundSky: ATProto Audio Social Network</title>
+    <title>SoundSky: ATProtoAudio Social Network</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = { darkMode: 'class' }
@@ -17,7 +17,26 @@
             background-color: #f8fafc;
         }
         
+       
       
+        ::-webkit-scrollbar {
+          width: 8px; /* or height for horizontal */
+        }
+
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background-color: rgba(0, 0, 0, 0.3); /* adjust opacity as needed */
+          border-radius: 4px;
+        }
+
+        /* Firefox-specific */
+        * {
+          scrollbar-width: thin; /* or 'auto' or 'none' */
+          scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+        }
         
         .progress-bar {
             height: 4px;
@@ -175,7 +194,10 @@
                     
                     <!-- Feed -->
                     <div id="feed" class="space-y-4">
-                        <div id="feed-loading" class="text-center text-gray-400 py-8 hidden">Loading...</div>
+                        <div id="feed-loading" class="text-center text-gray-400 py-8 hidden">
+                          Loading...<br>
+                          <img src="loading.gif" style="margin: auto;width: 50%;">
+                      </div>
                     </div>
                 </div>
             </div>
