@@ -10,7 +10,7 @@
 - Infraless: exists on top of bsky.social auth & sotrage
 - Supports Upload, Post & Playback of MP3 files
 - Discovers Audio content with special tag `#soundskyaudio`
-- URL parameters for linking `artists` and `posts`
+- URL parameters for linking to `artist` and `post`
 
 ##### Limitations
 - Currently only works with `bsky.social` accounts
