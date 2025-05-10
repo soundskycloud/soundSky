@@ -90,7 +90,7 @@ let nextCursor = null;
 
 // Sidebar navigation logic
 function setActiveNav(id) {
-    document.querySelectorAll('#nav-home, #nav-discover, #nav-likes').forEach(el => {
+    document.querySelectorAll('#nav-feed, #nav-discover, #nav-likes').forEach(el => {
         el.classList.remove('bg-blue-500', 'text-white');
         el.classList.add('text-gray-700');
     });
@@ -102,10 +102,10 @@ function setActiveNav(id) {
 }
 
 // Add event listeners for nav
-const navHome = document.getElementById('nav-home');
+const navFeed = document.getElementById('nav-feed');
 const navDiscover = document.getElementById('nav-discover');
 const navLikes = document.getElementById('nav-likes');
-if (navHome) navHome.onclick = (e) => { e.preventDefault(); setActiveNav('nav-home'); fetchSoundskyFeed({ mode: 'home' }); };
+if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
 if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
 if (navLikes) navLikes.onclick = (e) => {
     e.preventDefault();
@@ -298,6 +298,11 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         if (agent.session && agent.session.did === user.did) {
             deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
         }
+        // Show follow button if not following and not self
+        let followBtnHtml = '';
+        if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
+            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}">Follow</button>`;
+        }
         // Like and repost buttons
         const liked = post.viewer && post.viewer.like;
         const reposted = post.viewer && post.viewer.repost;
@@ -319,6 +324,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                                     <span class="mx-1 text-gray-500">·</span>
                                     <span class="text-sm text-gray-500">${time}</span>
                                     ${deleteBtnHtml}
+                                    ${followBtnHtml}
                                 </div>
                                 <p class="mt-1 text-gray-700">${text}</p>
                                 ${audioHtml}
@@ -522,6 +528,23 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                     }
                 } catch (err) {
                     alert('Failed to repost/unrepost post: ' + (err.message || err));
+                }
+            };
+        });
+        document.querySelectorAll('.follow-user-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const did = btn.getAttribute('data-did');
+                btn.disabled = true;
+                btn.textContent = 'Following...';
+                try {
+                    await agent.follow(did);
+                    btn.textContent = 'Following';
+                    btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
+                    btn.classList.add('text-gray-500', 'border-gray-200');
+                } catch (err) {
+                    btn.textContent = 'Follow';
+                    btn.disabled = false;
+                    alert('Failed to follow user: ' + (err.message || err));
                 }
             };
         });
