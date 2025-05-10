@@ -1,6 +1,7 @@
 import { BskyAgent } from 'https://esm.sh/@atproto/api';
 
-const agent = new BskyAgent({ service: 'https://bsky.social' });
+// Change agent to let, not const
+let agent = null;
 
 const loginForm = document.getElementById('login-form');
 const loginBtn = document.getElementById('login-btn');
@@ -17,6 +18,10 @@ if (uploadForm) uploadForm.style.display = 'none';
 // On page load, try to resume session
 window.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = 'blur(2px)';
+    const savedPds = localStorage.getItem('bskyPds') || 'https://bsky.social';
+    const pdsInput = document.getElementById('pds-server');
+    if (pdsInput) pdsInput.value = savedPds;
+    agent = new BskyAgent({ service: savedPds });
     const savedSession = localStorage.getItem('bskySession');
     if (savedSession) {
         try {
@@ -42,10 +47,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 loginBtn.addEventListener('click', async () => {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
+    const pdsInput = document.getElementById('pds-server');
+    const pds = pdsInput && pdsInput.value.trim() ? pdsInput.value.trim() : 'https://bsky.social';
     loginError.classList.add('hidden');
     loginBtn.disabled = true;
     loginBtn.textContent = 'Logging in...';
     try {
+        // Save PDS to localStorage
+        localStorage.setItem('bskyPds', pds);
+        // Create agent with selected PDS
+        agent = new BskyAgent({ service: pds });
         await agent.login({ identifier: username, password });
         // Save session to localStorage
         localStorage.setItem('bskySession', JSON.stringify(agent.session));
