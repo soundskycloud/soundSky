@@ -308,51 +308,52 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
         let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
             <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
-        // 1. In renderFeed, after audioHtml and before the end of the post card, add comment UI
-        // We'll add a placeholder for comments and a form, and fill them in after rendering
-        const commentSectionId = `comments-${post.cid}`;
-        const commentFormId = `comment-form-${post.cid}`;
-        const commentInputId = `comment-input-${post.cid}`;
-        const commentSendId = `comment-send-${post.cid}`;
-        const currentUserAvatar = (agent.session && agent.session.did)
-            ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
-            : defaultAvatar;
-        html += `
-            <div class="bg-white rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out">
-                <div class="p-4">
-                    <div class="flex items-start">
-                        <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                        <div class="ml-3 flex-1">
-                            <div class="flex items-center">
-                                <span class="font-medium text-gray-900">${displayName}</span>
-                                <span class="mx-1 text-gray-500">·</span>
-                                <span class="text-sm text-gray-500">${time}</span>
-                                ${deleteBtnHtml}
-                                ${followBtnHtml}
-                            </div>
-                            <p class="mt-1 text-gray-700">${text}</p>
-                            ${audioHtml}
-                            <div class="mt-3 flex items-center space-x-4">
-                                ${likeBtnHtml}
-                                ${repostBtnHtml}
-                            </div>
-                            <div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <img src="${currentUserAvatar}" class="h-8 w-8 rounded-full" alt="Me" onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                                    <form id="${commentFormId}" class="flex-1 flex items-center gap-2">
-                                        <input id="${commentInputId}" type="text" placeholder="Write a comment" class="flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none" maxlength="280" autocomplete="off" />
-                                        <button id="${commentSendId}" type="submit" class="p-2 text-blue-500 hover:text-blue-600" title="Send">
-                                            <svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z" fill="currentColor"/></svg>
-                                        </button>
-                                    </form>
+        if (text.trim() || audioHtml) {
+            // Comment UI IDs
+            const commentSectionId = `comments-${post.cid}`;
+            const commentFormId = `comment-form-${post.cid}`;
+            const commentInputId = `comment-input-${post.cid}`;
+            const commentSendId = `comment-send-${post.cid}`;
+            const currentUserAvatar = (agent.session && agent.session.did)
+                ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
+                : defaultAvatar;
+            html += `
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
+                    <div class="p-4">
+                        <div class="flex items-start">
+                            <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                            <div class="ml-3 flex-1">
+                                <div class="flex items-center">
+                                    <span class="font-medium text-gray-900">${displayName}</span>
+                                    <span class="mx-1 text-gray-500">·</span>
+                                    <span class="text-sm text-gray-500">${time}</span>
+                                    ${deleteBtnHtml}
+                                    ${followBtnHtml}
                                 </div>
-                                <div id="${commentSectionId}" class="space-y-2"></div>
+                                <p class="mt-1 text-gray-700">${text}</p>
+                                ${audioHtml}
+                                <div class="mt-3 flex items-center space-x-4">
+                                    ${likeBtnHtml}
+                                    ${repostBtnHtml}
+                                </div>
+                                <div class='mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
+                                    <div class='flex items-center gap-2 mb-2'>
+                                        <img src='${currentUserAvatar}' class='h-8 w-8 rounded-full' alt='Me' onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                                        <form id='${commentFormId}' class='flex-1 flex items-center gap-2'>
+                                            <input id='${commentInputId}' type='text' placeholder='Write a comment' class='flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none' maxlength='280' autocomplete='off' />
+                                            <button id='${commentSendId}' type='submit' class='p-2 text-blue-500 hover:text-blue-600' title='Send'>
+                                                <svg width='20' height='20' fill='none' viewBox='0 0 20 20'><path d='M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z' fill='currentColor'/></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    <div id='${commentSectionId}' class='space-y-2'></div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     }
     feedContainer.innerHTML = html;
     // After rendering all posts, initialize all WaveSurfer instances
@@ -580,11 +581,11 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                         const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
                         const name = author.displayName || author.handle || 'Unknown';
                         const text = reply.post.record.text || '';
-                        return `<div class="flex items-start gap-2"><img src="${avatar}" class="h-7 w-7 rounded-full" alt="${name}" onerror="this.onerror=null;this.src='${defaultAvatar}';"><div><span class="font-medium text-xs text-gray-900 dark:text-gray-100">${name}</span><p class="text-xs text-gray-700 dark:text-gray-200">${text}</p></div></div>`;
+                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
                     }).join('');
                 }
             } catch (err) {
-                commentSection.innerHTML = '<div class="text-red-400 text-xs">Failed to load comments.</div>';
+                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
             }
         });
         // For each post, handle comment form submit
@@ -611,23 +612,23 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                         // Re-fetch comments
                         const commentSection = document.getElementById(`comments-${post.cid}`);
                         if (commentSection) {
-                            commentSection.innerHTML = '<div class="text-gray-400 text-xs">Loading...</div>';
+                            commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">Loading...</div>';
                             try {
                                 const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
                                 const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
                                 if (replies.length === 0) {
-                                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+                                    commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">No comments yet.</div>';
                                 } else {
                                     commentSection.innerHTML = replies.map(reply => {
                                         const author = reply.post.author;
                                         const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
                                         const name = author.displayName || author.handle || 'Unknown';
                                         const text = reply.post.record.text || '';
-                                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
+                                        return `<div class=\\\"flex items-start gap-2\\\"><img src=\\\"${avatar}\\\" class=\\\"h-7 w-7 rounded-full\\\" alt=\\\"${name}\\\" onerror=\\\"this.onerror=null;this.src='${defaultAvatar}';\\\"><div><span class=\\\"font-medium text-xs text-gray-900 dark:text-gray-100\\\">${name}</span><p class=\\\"text-xs text-gray-700 dark:text-gray-200\\\">${text}</p></div></div>`;
                                     }).join('');
                                 }
                             } catch (err) {
-                                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
+                                commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
                             }
                         }
                     } catch (err) {
@@ -748,6 +749,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             loadMoreBtn.onclick = () => fetchSoundskyFeed({ append: true });
         }
     }
+    addSinglePostClickHandlers();
 }
 
 const createAudioPost = document.getElementById('create-audio-post');
@@ -828,4 +830,472 @@ if (!document.getElementById('soundsky-play-btn-style')) {
     }
     `;
     document.head.appendChild(style);
-} 
+}
+
+// --- Single Post View Logic ---
+function getPostParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('post');
+}
+
+function setPostParamInUrl(postUri) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('post', postUri);
+    window.history.pushState({}, '', url);
+}
+
+function clearPostParamInUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('post');
+    window.history.pushState({}, '', url);
+}
+
+async function renderSinglePostView(postUri) {
+    // Hide upload form in single mode
+    const uploadForm = document.getElementById('create-audio-post');
+    if (uploadForm) uploadForm.style.display = 'none';
+    // Remove modal/blur logic, render in feed container
+    document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
+    // Stop and destroy any existing WaveSurfer instances
+    if (window.soundskyWavesurfers) {
+        Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.destroy(); } catch {} });
+        window.soundskyWavesurfers = {};
+    }
+    // Clear feed and render single post
+    feedContainer.innerHTML = `<div id='single-post-content'></div>`;
+    // Fetch post thread
+    let postData;
+    try {
+        const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
+        postData = threadRes.data.thread && threadRes.data.thread.post ? threadRes.data.thread : threadRes.data.thread;
+    } catch (err) {
+        document.getElementById('single-post-content').innerHTML = `<div class='text-red-500'>Failed to load post.</div>`;
+        return;
+    }
+    // Render post using a modified version of the feed renderer (single post, full width)
+    const post = postData.post || postData;
+    const user = post.author;
+    const text = post.record.text || '';
+    const did = user.did;
+    let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
+    const displayName = user.displayName || user.handle || 'Unknown';
+    const time = new Date(post.indexedAt).toLocaleString();
+    let audioHtml = '';
+    let audioBlobUrl = null;
+    let audioWaveformId = `waveform-single-${post.cid}`;
+    let fileEmbed = null;
+    const embed = post.record && post.record.embed;
+    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+        const mimeType = fileEmbed.file.mimeType;
+        try {
+            const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+            let resp = await fetch(blobUrl);
+            if (!resp.ok) {
+                const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
+                resp = await fetch(corsProxyUrl);
+            }
+            if (!resp.ok) throw new Error('Blob fetch failed');
+            const audioBlob = await resp.blob();
+            audioBlobUrl = URL.createObjectURL(audioBlob);
+        } catch (e) {
+            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
+        }
+        if (audioBlobUrl && audioWaveformId) {
+            audioHtml = `
+              <div class="flex items-center gap-2 mt-3">
+                <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
+                  <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
+                    <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
+                  </svg>
+                </button>
+                <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
+                  <div class="wavesurfer-time">0:00</div>
+                  <div class="wavesurfer-duration">0:00</div>
+                  <div class="wavesurfer-hover"></div>
+                </div>
+              </div>
+            `;
+        }
+    }
+    // Like, repost, delete, follow buttons (reuse logic)
+    let deleteBtnHtml = '';
+    if (agent.session && agent.session.did === user.did) {
+        deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
+    }
+    let followBtnHtml = '';
+    if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
+        followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}">Follow</button>`;
+    }
+    const liked = post.viewer && post.viewer.like;
+    const reposted = post.viewer && post.viewer.repost;
+    const likeCount = post.likeCount || 0;
+    const repostCount = post.repostCount || 0;
+    let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}">
+        <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
+    let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
+        <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
+    // Comment UI
+    const commentSectionId = `comments-${post.cid}`;
+    const commentFormId = `comment-form-${post.cid}`;
+    const commentInputId = `comment-input-${post.cid}`;
+    const commentSendId = `comment-send-${post.cid}`;
+    const currentUserAvatar = (agent.session && agent.session.did)
+        ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
+        : defaultAvatar;
+    // Render single post content in feed container
+    document.getElementById('single-post-content').innerHTML = `
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out max-w-2xl mx-auto mt-8 mb-8">
+            <div class="p-4">
+                <button id='close-single-post' class='mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 float-right'>Back to Feed</button>
+                <div class="flex items-start">
+                    <img class="h-14 w-14 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                    <div class="ml-4 flex-1">
+                        <div class="flex items-center">
+                            <span class="font-bold text-lg text-gray-900">${displayName}</span>
+                            <span class="mx-2 text-gray-500">·</span>
+                            <span class="text-sm text-gray-500">${time}</span>
+                            ${deleteBtnHtml}
+                            ${followBtnHtml}
+                        </div>
+                        <p class="mt-2 text-gray-800 text-lg">${text}</p>
+                        ${audioHtml}
+                        <div class="mt-4 flex items-center space-x-6">
+                            ${likeBtnHtml}
+                            ${repostBtnHtml}
+                        </div>
+                        <div class='mt-6 bg-gray-50 dark:bg-gray-800 rounded-lg p-4'>
+                            <div class='flex items-center gap-2 mb-2'>
+                                <img src='${currentUserAvatar}' class='h-8 w-8 rounded-full' alt='Me' onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                                <form id='${commentFormId}' class='flex-1 flex items-center gap-2'>
+                                    <input id='${commentInputId}' type='text' placeholder='Write a comment' class='flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none' maxlength='280' autocomplete='off' />
+                                    <button id='${commentSendId}' type='submit' class='p-2 text-blue-500 hover:text-blue-600' title='Send'>
+                                        <svg width='20' height='20' fill='none' viewBox='0 0 20 20'><path d='M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z' fill='currentColor'/></svg>
+                                    </button>
+                                </form>
+                            </div>
+                            <div id='${commentSectionId}' class='space-y-2'></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    // Init WaveSurfer
+    setTimeout(() => {
+        const container = document.getElementById(audioWaveformId);
+        if (container && window.WaveSurfer && audioBlobUrl) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 48;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+            gradient.addColorStop(0, '#656666');
+            gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
+            gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+            gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+            gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
+            gradient.addColorStop(1, '#B1B1B1');
+            const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+            progressGradient.addColorStop(0, '#EE772F');
+            progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
+            progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+            progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+            progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
+            progressGradient.addColorStop(1, '#F6B094');
+            const wavesurfer = window.WaveSurfer.create({
+                container: `#${audioWaveformId}`,
+                waveColor: gradient,
+                progressColor: progressGradient,
+                height: 48,
+                barWidth: 2,
+                responsive: true,
+                cursorColor: '#3b82f6',
+                backend: 'MediaElement',
+            });
+            wavesurfer.load(audioBlobUrl);
+            window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
+            const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+            if (playBtn) {
+                const svg = playBtn.querySelector('.wavesurfer-play-icon');
+                playBtn.onclick = () => {
+                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                            ws.pause();
+                        }
+                    });
+                    if (wavesurfer.isPlaying()) {
+                        wavesurfer.pause();
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                    } else {
+                        wavesurfer.play();
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                    }
+                };
+                wavesurfer.on('finish', () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                });
+                wavesurfer.on('pause', () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                });
+                wavesurfer.on('play', () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                });
+            }
+            const timeEl = container.querySelector('.wavesurfer-time');
+            const durationEl = container.querySelector('.wavesurfer-duration');
+            const formatTime = (seconds) => {
+                const minutes = Math.floor(seconds / 60);
+                const secondsRemainder = Math.round(seconds) % 60;
+                const paddedSeconds = `0${secondsRemainder}`.slice(-2);
+                return `${minutes}:${paddedSeconds}`;
+            };
+            wavesurfer.on('decode', (duration) => {
+                if (durationEl) durationEl.textContent = formatTime(duration);
+            });
+            wavesurfer.on('timeupdate', (currentTime) => {
+                if (timeEl) timeEl.textContent = formatTime(currentTime);
+            });
+            const hoverEl = container.querySelector('.wavesurfer-hover');
+            container.addEventListener('pointermove', (e) => {
+                if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
+            });
+            container.addEventListener('pointerenter', () => {
+                if (hoverEl) hoverEl.style.opacity = 1;
+            });
+            container.addEventListener('pointerleave', () => {
+                if (hoverEl) hoverEl.style.opacity = 0;
+            });
+        }
+        // Comments fetch and post logic (reuse from feed)
+        (async () => {
+            const commentSection = document.getElementById(`comments-${post.cid}`);
+            if (!commentSection) return;
+            try {
+                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+                const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
+                if (replies.length === 0) {
+                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+                } else {
+                    commentSection.innerHTML = replies.map(reply => {
+                        const author = reply.post.author;
+                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                        const name = author.displayName || author.handle || 'Unknown';
+                        const text = reply.post.record.text || '';
+                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
+                    }).join('');
+                }
+            } catch (err) {
+                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
+            }
+        })();
+        const form = document.getElementById(`comment-form-${post.cid}`);
+        const input = document.getElementById(`comment-input-${post.cid}`);
+        if (form && input) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const text = input.value.trim();
+                if (!text) return;
+                form.querySelector('button[type="submit"]').disabled = true;
+                try {
+                    await agent.post({
+                        text,
+                        reply: {
+                            root: { cid: post.cid, uri: post.uri },
+                            parent: { cid: post.cid, uri: post.uri }
+                        }
+                    });
+                    input.value = '';
+                    const commentSection = document.getElementById(`comments-${post.cid}`);
+                    if (commentSection) {
+                        commentSection.innerHTML = '<div class="text-gray-400 text-xs">Loading...</div>';
+                        try {
+                            const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+                            const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
+                            if (replies.length === 0) {
+                                commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+                            } else {
+                                commentSection.innerHTML = replies.map(reply => {
+                                    const author = reply.post.author;
+                                    const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                                    const name = author.displayName || author.handle || 'Unknown';
+                                    const text = reply.post.record.text || '';
+                                    return `<div class=\\\"flex items-start gap-2\\\"><img src=\\\"${avatar}\\\" class=\\\"h-7 w-7 rounded-full\\\" alt=\\\"${name}\\\" onerror=\\\"this.onerror=null;this.src='${defaultAvatar}';\\\"><div><span class=\\\"font-medium text-xs text-gray-900 dark:text-gray-100\\\">${name}</span><p class=\\\"text-xs text-gray-700 dark:text-gray-200\\\">${text}</p></div></div>`;
+                                }).join('');
+                            }
+                        } catch (err) {
+                            commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
+                        }
+                    }
+                } catch (err) {
+                    alert('Failed to post comment: ' + (err.message || err));
+                } finally {
+                    form.querySelector('button[type="submit"]').disabled = false;
+                }
+            };
+        }
+        // Like, repost, delete, follow, etc. event listeners (reuse from feed)
+        setTimeout(() => {
+            document.querySelectorAll('.delete-post-btn').forEach(btn => {
+                btn.onclick = async (e) => {
+                    let uri = btn.getAttribute('data-uri');
+                    if (typeof uri !== 'string') uri = String(uri);
+                    if (window.confirm('Are you sure you want to delete this post?')) {
+                        try {
+                            const uriParts = uri.replace('at://', '').split('/');
+                            const did = uriParts[0];
+                            const collection = uriParts[1];
+                            const rkey = uriParts[2];
+                            await agent.api.com.atproto.repo.deleteRecord({
+                                repo: did,
+                                collection,
+                                rkey,
+                            });
+                            clearPostParamInUrl();
+                            fetchSoundskyFeed();
+                        } catch (err) {
+                            alert('Failed to delete post: ' + (err.message || err));
+                        }
+                    }
+                };
+            });
+            document.querySelectorAll('.like-post-btn').forEach(btn => {
+                btn.onclick = async (e) => {
+                    const uri = btn.getAttribute('data-uri');
+                    const cid = btn.getAttribute('data-cid');
+                    const liked = btn.getAttribute('data-liked') === 'true';
+                    const likeUri = btn.getAttribute('data-likeuri');
+                    const countSpan = btn.querySelector('span');
+                    try {
+                        if (!liked) {
+                            await agent.like(uri, cid);
+                            btn.setAttribute('data-liked', 'true');
+                            btn.classList.remove('text-gray-500', 'hover:text-blue-500');
+                            btn.classList.add('text-blue-500');
+                            btn.querySelector('i').classList.remove('far');
+                            btn.querySelector('i').classList.add('fas');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                        } else {
+                            if (likeUri) {
+                                await agent.deleteLike(likeUri);
+                                btn.setAttribute('data-liked', 'false');
+                                btn.classList.remove('text-blue-500');
+                                btn.classList.add('text-gray-500', 'hover:text-blue-500');
+                                btn.querySelector('i').classList.remove('fas');
+                                btn.querySelector('i').classList.add('far');
+                                countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                            } else {
+                                alert('Could not find like record URI to unlike.');
+                            }
+                        }
+                    } catch (err) {
+                        alert('Failed to like/unlike post: ' + (err.message || err));
+                    }
+                };
+            });
+            document.querySelectorAll('.repost-post-btn').forEach(btn => {
+                btn.onclick = async (e) => {
+                    const uri = btn.getAttribute('data-uri');
+                    const cid = btn.getAttribute('data-cid');
+                    const reposted = btn.getAttribute('data-reposted') === 'true';
+                    const repostUri = btn.getAttribute('data-reposturi');
+                    const countSpan = btn.querySelector('span');
+                    try {
+                        if (!reposted) {
+                            await agent.repost(uri, cid);
+                            btn.setAttribute('data-reposted', 'true');
+                            btn.classList.remove('text-gray-500', 'hover:text-green-500');
+                            btn.classList.add('text-green-500');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                        } else {
+                            if (repostUri) {
+                                await agent.deleteRepost(repostUri);
+                                btn.setAttribute('data-reposted', 'false');
+                                btn.classList.remove('text-green-500');
+                                btn.classList.add('text-gray-500', 'hover:text-green-500');
+                                countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                            } else {
+                                alert('Could not find repost record URI to unrepost.');
+                            }
+                        }
+                    } catch (err) {
+                        alert('Failed to repost/unrepost post: ' + (err.message || err));
+                    }
+                };
+            });
+            document.querySelectorAll('.follow-user-btn').forEach(btn => {
+                btn.onclick = async (e) => {
+                    const did = btn.getAttribute('data-did');
+                    btn.disabled = true;
+                    btn.textContent = 'Following...';
+                    try {
+                        await agent.follow(did);
+                        btn.textContent = 'Following';
+                        btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
+                        btn.classList.add('text-gray-500', 'border-gray-200');
+                    } catch (err) {
+                        btn.textContent = 'Follow';
+                        btn.disabled = false;
+                        alert('Failed to follow user: ' + (err.message || err));
+                    }
+                };
+            });
+        }, 0);
+    }, 0);
+    // Close button
+    document.getElementById('close-single-post').onclick = () => {
+        // Stop and destroy single post WaveSurfer instance
+        if (window.soundskyWavesurfers && window.soundskyWavesurfers[audioWaveformId]) {
+            try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch {};
+            delete window.soundskyWavesurfers[audioWaveformId];
+        }
+        // Show upload form again
+        const uploadForm = document.getElementById('create-audio-post');
+        if (uploadForm) uploadForm.style.display = '';
+        clearPostParamInUrl();
+        fetchSoundskyFeed();
+    };
+}
+
+// --- Add click handler to each post in the feed ---
+function addSinglePostClickHandlers() {
+    setTimeout(() => {
+        document.querySelectorAll('.post-card').forEach(card => {
+            card.onclick = (e) => {
+                // Prevent clicks on buttons/links/forms/inputs inside the card from triggering
+                if (e.target.closest('button') || e.target.closest('form') || e.target.closest('input') || e.target.closest('a')) return;
+                const postUri = card.getAttribute('data-post-uri');
+                if (postUri) {
+                    setPostParamInUrl(postUri);
+                    renderSinglePostView(postUri);
+                }
+            };
+        });
+    }, 0);
+}
+
+// --- On page load and popstate, check for ?post=... ---
+window.addEventListener('DOMContentLoaded', async () => {
+    const postParam = getPostParamFromUrl();
+    if (postParam) {
+        renderSinglePostView(postParam);
+    }
+});
+window.addEventListener('popstate', () => {
+    const postParam = getPostParamFromUrl();
+    if (postParam) {
+        renderSinglePostView(postParam);
+    } else {
+        const modal = document.getElementById('single-post-modal');
+        if (modal) modal.style.display = 'none';
+        document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
+    }
+});
+// After rendering feed, add click handlers
+const origRenderFeed = renderFeed;
+renderFeed = async function(...args) {
+    await origRenderFeed.apply(this, args);
+    addSinglePostClickHandlers();
+}; 
