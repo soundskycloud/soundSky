@@ -204,7 +204,11 @@
                     <div id="create-audio-post" class="bg-white rounded-xl shadow-sm p-4 mb-6">
                         <form id="audio-post-form" class="flex flex-col gap-3">
                             <div class="flex items-center gap-3">
-                                <input id="audio-file" type="file" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required />
+                                <label for="audio-file" class="flex items-center gap-2 cursor-pointer w-full">
+                                    <span class="inline-flex items-center justify-center w-10 h-10 bg-blue-100 text-blue-600 rounded-full"><i class="fas fa-music"></i></span>
+                                    <input id="audio-file" type="file" accept=".mp3,audio/mpeg" class="hidden" required />
+                                    <span id="audio-file-label" class="text-sm text-gray-500">Choose MP3 file…</span>
+                                </label>
                             </div>
                             <textarea id="audio-caption" class="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" rows="2" placeholder="Write a caption..."></textarea>
                             <button id="audio-post-btn" type="submit" class="self-end px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Post Audio</button>
@@ -235,5 +239,17 @@
 
     <script type="module" src="main.js"></script>
     <script src="https://unpkg.com/wavesurfer.js"></script>
+    <script>
+    // Show selected file name in the label
+    document.addEventListener('DOMContentLoaded', function() {
+      var input = document.getElementById('audio-file');
+      var label = document.getElementById('audio-file-label');
+      if (input && label) {
+        input.addEventListener('change', function() {
+          label.textContent = input.files && input.files.length ? input.files[0].name : 'Choose MP3 file…';
+        });
+      }
+    });
+    </script>
 </body>
 </html>
