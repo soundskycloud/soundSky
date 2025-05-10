@@ -353,6 +353,12 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             if (playBtn) {
                 const svg = playBtn.querySelector('.wavesurfer-play-icon');
                 playBtn.onclick = () => {
+                    // Pause all other players before playing this one
+                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                            ws.pause();
+                        }
+                    });
                     if (wavesurfer.isPlaying()) {
                         wavesurfer.pause();
                         // Set to play icon
@@ -544,6 +550,12 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             if (playBtn) {
                 const svg = playBtn.querySelector('.wavesurfer-play-icon');
                 playBtn.onclick = () => {
+                    // Pause all other players before playing this one
+                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                            ws.pause();
+                        }
+                    });
                     if (wavesurfer.isPlaying()) {
                         wavesurfer.pause();
                         // Set to play icon
