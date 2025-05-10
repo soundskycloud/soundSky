@@ -2,7 +2,8 @@
 
 > ATProto/bsky based Soundcloud Alternative
 ### Status
-- Experimental
+- Super Experimental
+- Try it at [soundsky.glitch.me](https://soundsky.glitch.me)
 
 ### Features
 - Infraless: relies on bsky.social auth & sotrage
@@ -13,3 +14,7 @@
 <a href="https://soundsky.glitch.me">
 <img src="https://github.com/user-attachments/assets/ddf26b8a-0371-4aca-b532-2141d92063ed">
 </a>
+
+
+> [!WARNING]
+> Audio files are stored as blobs. Nobody knows how long they might survive!
