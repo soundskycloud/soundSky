@@ -135,7 +135,7 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
                 if (localCursor) params.cursor = localCursor;
                 feed = await agent.getTimeline(params);
             } else if (mode === 'likes') {
-                feedContainer.innerHTML = '<div class="text-center text-gray-500 py-8">Sorry, Bluesky does not yet support listing all your liked posts.</div>';
+                feedContainer.innerHTML = '<div class="text-center text-gray-500 py-8">Coming Soon!</div>';
                 feedLoading.classList.add('hidden');
                 return;
             } else if (mode === 'discover') {
