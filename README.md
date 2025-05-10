@@ -7,8 +7,8 @@
 👉 Try it at [soundsky.glitch.me](https://soundsky.glitch.me)<br>
 
 ##### Features
-- Infraless: exists on top of bsky.social auth & sotrage
-- Supports Upload, Post & Playback of MP3 files
+- Infraless: exists on top of bsky.social auth & blob storage
+- Supports Upload, Post & Playback of _(legal)_ MP3 files 
 - Discovers Audio content with special tag `#soundskyaudio`
 - URL parameters for linking to `artist` and `post`
 
