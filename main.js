@@ -62,6 +62,24 @@ loginBtn.addEventListener('click', async () => {
 // Add logout button logic
 const topNav = document.querySelector('.flex.items-center.space-x-4');
 if (topNav) {
+    // Upload button
+    const uploadBtn = document.createElement('button');
+    uploadBtn.textContent = 'Upload';
+    uploadBtn.className = 'ml-2 px-3 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50';
+    uploadBtn.onclick = () => {
+        const uploadForm = document.getElementById('create-audio-post');
+        // Only toggle if not in single post mode
+        const postParam = typeof getPostParamFromUrl === 'function' ? getPostParamFromUrl() : null;
+        if (uploadForm && !postParam) {
+            if (uploadForm.style.display === 'none' || uploadForm.style.display === '') {
+                uploadForm.style.display = 'block';
+            } else {
+                uploadForm.style.display = 'none';
+            }
+        }
+    };
+    topNav.appendChild(uploadBtn);
+
     const logoutBtn = document.createElement('button');
     logoutBtn.textContent = 'Logout';
     logoutBtn.className = 'ml-2 px-3 py-1 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-100';
@@ -329,7 +347,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                             <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
                             <div class="ml-3 flex-1">
                                 <div class="flex items-center">
-                                    <span class="font-medium text-gray-900">${displayName}</span>
+                                    <button class="post-title-link font-medium text-gray-900" data-post-uri="${String(post.uri)}">${displayName}</button>
                                     <span class="mx-1 text-gray-500">·</span>
                                     <span class="text-sm text-gray-500">${time}</span>
                                     ${deleteBtnHtml}
@@ -960,7 +978,7 @@ async function renderSinglePostView(postUri) {
                     <img class="h-14 w-14 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
                     <div class="ml-4 flex-1">
                         <div class="flex items-center">
-                            <span class="font-bold text-lg text-gray-900">${displayName}</span>
+                            <button class="post-title-link font-bold text-lg text-gray-900" data-post-uri="${String(post.uri)}">${displayName}</button>
                             <span class="mx-2 text-gray-500">·</span>
                             <span class="text-sm text-gray-500">${time}</span>
                             ${deleteBtnHtml}
@@ -1267,24 +1285,10 @@ async function renderSinglePostView(postUri) {
 // --- Add click handler to each post in the feed ---
 function addSinglePostClickHandlers() {
     setTimeout(() => {
-        document.querySelectorAll('.post-card').forEach(card => {
-            card.onclick = (e) => {
-                // Prevent clicks on buttons/links/forms/inputs or the player from triggering single mode
-                if (
-                  e.target.closest('button') ||
-                  e.target.closest('form') ||
-                  e.target.closest('input') ||
-                  e.target.closest('a') ||
-                  e.target.closest('.wavesurfer') ||
-                  e.target.closest('.soundsky-play-btn') ||
-                  e.target.classList.contains('wavesurfer') ||
-                  e.target.classList.contains('audioplayerbox') ||
-                  e.target.classList.contains('soundsky-play-btn') ||
-                  e.target.closest('.wavesurfer-play-icon') ||
-                  e.target.closest('svg.wavesurfer-play-icon') ||
-                  e.target.closest('.play-shape')
-                ) return;
-                const postUri = card.getAttribute('data-post-uri');
+        document.querySelectorAll('.post-title-link').forEach(title => {
+            title.onclick = (e) => {
+                e.preventDefault();
+                const postUri = title.getAttribute('data-post-uri');
                 if (postUri) {
                     setPostParamInUrl(postUri);
                     renderSinglePostView(postUri);
@@ -1316,4 +1320,24 @@ const origRenderFeed = renderFeed;
 renderFeed = async function(...args) {
     await origRenderFeed.apply(this, args);
     addSinglePostClickHandlers();
-}; 
+};
+
+// Add style for .post-title-link if not present
+if (!document.getElementById('post-title-link-style')) {
+    const style = document.createElement('style');
+    style.id = 'post-title-link-style';
+    style.textContent = `
+    .post-title-link {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      padding: 0;
+    }
+    .post-title-link:hover {
+      text-decoration: underline;
+    }
+    `;
+    document.head.appendChild(style);
+} 
