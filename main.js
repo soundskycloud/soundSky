@@ -258,18 +258,17 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             try {
                 // Direct fetch to the public getBlob endpoint
                 const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
-                const resp = await fetch(blobUrl);
+                let resp = await fetch(blobUrl);
+                if (!resp.ok) {
+                    // Try with CORS proxy if direct fetch fails
+                    const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
+                    resp = await fetch(corsProxyUrl);
+                }
                 if (!resp.ok) throw new Error('Blob fetch failed');
                 const audioBlob = await resp.blob();
                 audioBlobUrl = URL.createObjectURL(audioBlob);
             } catch (e) {
-                let ext = 'mp3';
-                if (mimeType === 'audio/wav') ext = 'wav';
-                else if (mimeType === 'audio/ogg') ext = 'ogg';
-                else if (mimeType === 'audio/webm') ext = 'webm';
-                else if (mimeType === 'audio/aac') ext = 'aac';
-                else if (mimeType === 'audio/flac') ext = 'flac';
-                audioBlobUrl = `https://cdn.bsky.app/img/file/plain/${user.did}/${blobRef}@${ext}`;
+                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
             }
             if (audioBlobUrl && audioWaveformId) {
                 audioHtml = `
@@ -309,32 +308,51 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
         let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
             <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
-        if (text.trim() || audioHtml) {
-            html += `
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out">
-                    <div class="p-4">
-                        <div class="flex items-start">
-                            <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                            <div class="ml-3 flex-1">
-                                <div class="flex items-center">
-                                    <span class="font-medium text-gray-900">${displayName}</span>
-                                    <span class="mx-1 text-gray-500">·</span>
-                                    <span class="text-sm text-gray-500">${time}</span>
-                                    ${deleteBtnHtml}
-                                    ${followBtnHtml}
+        // 1. In renderFeed, after audioHtml and before the end of the post card, add comment UI
+        // We'll add a placeholder for comments and a form, and fill them in after rendering
+        const commentSectionId = `comments-${post.cid}`;
+        const commentFormId = `comment-form-${post.cid}`;
+        const commentInputId = `comment-input-${post.cid}`;
+        const commentSendId = `comment-send-${post.cid}`;
+        const currentUserAvatar = (agent.session && agent.session.did)
+            ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
+            : defaultAvatar;
+        html += `
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out">
+                <div class="p-4">
+                    <div class="flex items-start">
+                        <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                        <div class="ml-3 flex-1">
+                            <div class="flex items-center">
+                                <span class="font-medium text-gray-900">${displayName}</span>
+                                <span class="mx-1 text-gray-500">·</span>
+                                <span class="text-sm text-gray-500">${time}</span>
+                                ${deleteBtnHtml}
+                                ${followBtnHtml}
+                            </div>
+                            <p class="mt-1 text-gray-700">${text}</p>
+                            ${audioHtml}
+                            <div class="mt-3 flex items-center space-x-4">
+                                ${likeBtnHtml}
+                                ${repostBtnHtml}
+                            </div>
+                            <div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <img src="${currentUserAvatar}" class="h-8 w-8 rounded-full" alt="Me" onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                                    <form id="${commentFormId}" class="flex-1 flex items-center gap-2">
+                                        <input id="${commentInputId}" type="text" placeholder="Write a comment" class="flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none" maxlength="280" autocomplete="off" />
+                                        <button id="${commentSendId}" type="submit" class="p-2 text-blue-500 hover:text-blue-600" title="Send">
+                                            <svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z" fill="currentColor"/></svg>
+                                        </button>
+                                    </form>
                                 </div>
-                                <p class="mt-1 text-gray-700">${text}</p>
-                                ${audioHtml}
-                                <div class="mt-3 flex items-center space-x-4">
-                                    ${likeBtnHtml}
-                                    ${repostBtnHtml}
-                                </div>
+                                <div id="${commentSectionId}" class="space-y-2"></div>
                             </div>
                         </div>
                     </div>
                 </div>
-            `;
-        }
+            </div>
+        `;
     }
     feedContainer.innerHTML = html;
     // After rendering all posts, initialize all WaveSurfer instances
@@ -544,6 +562,81 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                     alert('Failed to follow user: ' + (err.message || err));
                 }
             };
+        });
+        // For each post, fetch and render comments
+        audioPosts.forEach(async (item) => {
+            const post = item.post || item;
+            const commentSection = document.getElementById(`comments-${post.cid}`);
+            if (!commentSection) return;
+            try {
+                // Fetch replies using getPostThread
+                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+                const replies = (threadRes.data.thread?.replies || []).slice(0, 5); // Show up to 5 recent replies
+                if (replies.length === 0) {
+                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+                } else {
+                    commentSection.innerHTML = replies.map(reply => {
+                        const author = reply.post.author;
+                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                        const name = author.displayName || author.handle || 'Unknown';
+                        const text = reply.post.record.text || '';
+                        return `<div class="flex items-start gap-2"><img src="${avatar}" class="h-7 w-7 rounded-full" alt="${name}" onerror="this.onerror=null;this.src='${defaultAvatar}';"><div><span class="font-medium text-xs text-gray-900 dark:text-gray-100">${name}</span><p class="text-xs text-gray-700 dark:text-gray-200">${text}</p></div></div>`;
+                    }).join('');
+                }
+            } catch (err) {
+                commentSection.innerHTML = '<div class="text-red-400 text-xs">Failed to load comments.</div>';
+            }
+        });
+        // For each post, handle comment form submit
+        audioPosts.forEach((item) => {
+            const post = item.post || item;
+            const form = document.getElementById(`comment-form-${post.cid}`);
+            const input = document.getElementById(`comment-input-${post.cid}`);
+            if (form && input) {
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const text = input.value.trim();
+                    if (!text) return;
+                    form.querySelector('button[type="submit"]').disabled = true;
+                    try {
+                        // Post reply
+                        await agent.post({
+                            text,
+                            reply: {
+                                root: { cid: post.cid, uri: post.uri },
+                                parent: { cid: post.cid, uri: post.uri }
+                            }
+                        });
+                        input.value = '';
+                        // Re-fetch comments
+                        const commentSection = document.getElementById(`comments-${post.cid}`);
+                        if (commentSection) {
+                            commentSection.innerHTML = '<div class="text-gray-400 text-xs">Loading...</div>';
+                            try {
+                                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+                                const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
+                                if (replies.length === 0) {
+                                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+                                } else {
+                                    commentSection.innerHTML = replies.map(reply => {
+                                        const author = reply.post.author;
+                                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                                        const name = author.displayName || author.handle || 'Unknown';
+                                        const text = reply.post.record.text || '';
+                                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
+                                    }).join('');
+                                }
+                            } catch (err) {
+                                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
+                            }
+                        }
+                    } catch (err) {
+                        alert('Failed to post comment: ' + (err.message || err));
+                    } finally {
+                        form.querySelector('button[type="submit"]').disabled = false;
+                    }
+                };
+            }
         });
     }, 0);
     // At the end, add Load More button if needed
