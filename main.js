@@ -30,6 +30,9 @@ window.addEventListener('DOMContentLoaded', async () => {
             localStorage.removeItem('bskySession');
         }
     }
+    // Hide the upload box by default on page load
+    const uploadForm = document.getElementById('create-audio-post');
+    if (uploadForm) uploadForm.style.display = 'none';
 });
 
 loginBtn.addEventListener('click', async () => {
@@ -254,7 +257,20 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
     });
     if (!audioPosts.length) {
-        feedContainer.innerHTML = '<div class="text-center text-gray-500 py-8">No audio posts found.</div>';
+        feedContainer.innerHTML = `<div class="text-center text-gray-500 py-8">
+            It's quiet in here - let's post some music or <a href="#" id="go-discover-link" class="text-blue-500 underline">follow other artists</a>.
+        </div>`;
+        setTimeout(() => {
+            const link = document.getElementById('go-discover-link');
+            if (link) {
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    clearPostParamInUrl();
+                    setActiveNav('nav-discover');
+                    fetchSoundskyFeed({ mode: 'discover' });
+                };
+            }
+        }, 0);
         return;
     }
     // Store info for initializing WaveSurfer after DOM update
@@ -977,7 +993,7 @@ async function renderSinglePostView(postUri) {
                     <img class="h-14 w-14 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
                     <div class="ml-4 flex-1">
                         <div class="flex items-center">
-                            <span class="font-bold text-lg text-gray-900 dark:text-gray-100">${displayName}</span>
+                            <span class="font-bold text-gray-900 dark:text-gray-100">${displayName}</span>
                             <span class="mx-2 text-gray-500 dark:text-gray-400">·</span>
                             <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
                             ${deleteBtnHtml}
