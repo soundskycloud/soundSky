@@ -17,34 +17,7 @@
             background-color: #f8fafc;
         }
         
-        .waveform {
-            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
-            height: 60px;
-            width: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .waveform::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 Q 25 10, 50 30 T 100 30 T 150 30 T 200 30' stroke='%23ffffff' fill='none' stroke-width='2' opacity='0.3'/%3E%3C/svg%3E");
-            background-size: 200px 60px;
-            animation: wave 2s linear infinite;
-        }
-        
-        @keyframes wave {
-            0% { background-position-x: 0; }
-            100% { background-position-x: 200px; }
-        }
-        
-        .playing .waveform::before {
-            animation: wave 0.8s linear infinite;
-        }
+      
         
         .progress-bar {
             height: 4px;
@@ -62,31 +35,6 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        
-        .audio-visualizer {
-            display: flex;
-            align-items: flex-end;
-            height: 40px;
-            gap: 2px;
-        }
-        
-        .audio-bar {
-            width: 3px;
-            background-color: #3b82f6;
-            border-radius: 2px;
-            animation: equalize 1.5s infinite ease-in-out;
-        }
-        
-        @keyframes equalize {
-            0%, 100% { height: 10px; }
-            50% { height: 20px; }
-        }
-        
-        .audio-bar:nth-child(1) { animation-delay: -0.9s; }
-        .audio-bar:nth-child(2) { animation-delay: -0.6s; }
-        .audio-bar:nth-child(3) { animation-delay: -0.3s; }
-        .audio-bar:nth-child(4) { animation-delay: -0.15s; }
-        .audio-bar:nth-child(5) { animation-delay: -0.05s; }
         
         .wavesurfer.waveform {
             cursor: pointer;
@@ -237,7 +185,7 @@
     <!-- Login Form -->
     <div id="login-form" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
         <div class="bg-white rounded-xl shadow-lg p-8 w-80 flex flex-col items-center">
-            <h2 class="text-xl font-bold mb-4">Sign in to SoundSky</h2>
+            <h2 class="text-xl font-bold mb-4 text-gray-900">Sign in to SoundSky</h2>
             <input id="username" class="mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="bsky handle (e.g. user.bsky.social)" />
             <input id="password" type="password" class="mb-4 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="App password" />
             <button id="login-btn" class="w-full px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Login</button>
