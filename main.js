@@ -10,6 +10,10 @@ const feedLoading = document.getElementById('feed-loading');
 
 const defaultAvatar = '/default-avatar.png';
 
+// Immediately hide the upload box if present
+const uploadForm = document.getElementById('create-audio-post');
+if (uploadForm) uploadForm.style.display = 'none';
+
 // On page load, try to resume session
 window.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = 'blur(2px)';
@@ -91,6 +95,60 @@ if (topNav) {
         window.location.reload();
     };
     topNav.appendChild(logoutBtn);
+
+    // Add volume button and slider to the top bar
+    // Volume button and slider container
+    const volumeContainer = document.createElement('div');
+    volumeContainer.className = 'relative flex items-center';
+    // Volume button
+    const volumeBtn = document.createElement('button');
+    volumeBtn.innerHTML = `<svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M3 8v4h4l5 5V3L7 8H3z" fill="currentColor"/></svg>`;
+    volumeBtn.className = 'ml-2 px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-100';
+    // Volume slider (vertical, hidden by default)
+    const volumeSlider = document.createElement('input');
+    volumeSlider.type = 'range';
+    volumeSlider.min = '0';
+    volumeSlider.max = '1';
+    volumeSlider.step = '0.01';
+    volumeSlider.className = 'absolute left-1/2 -translate-x-1/2 w-8 h-32 bg-gray-200 rounded-lg appearance-none cursor-pointer hidden z-50 volume-slider';
+    volumeSlider.style.top = '100%';
+    volumeSlider.style.width = '16px';
+    volumeSlider.style.bottom = 'auto';
+    volumeSlider.style.marginTop = '0.5rem';
+    volumeSlider.style.writingMode = 'vertical-lr';
+    volumeSlider.style.transform = 'translateX(-50%) rotate(180deg)';
+    // Set initial volume from localStorage or default
+    let globalVolume = 1.0;
+    if (localStorage.getItem('soundskyVolume')) {
+        globalVolume = parseFloat(localStorage.getItem('soundskyVolume'));
+        if (isNaN(globalVolume)) globalVolume = 1.0;
+    }
+    volumeSlider.value = globalVolume;
+    // Show/hide slider on button click
+    volumeBtn.onclick = (e) => {
+        e.stopPropagation();
+        volumeSlider.classList.toggle('hidden');
+    };
+    // Hide slider when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!volumeContainer.contains(e.target)) {
+            volumeSlider.classList.add('hidden');
+        }
+    });
+    // Update all wavesurfer instances on slider change
+    volumeSlider.oninput = () => {
+        globalVolume = parseFloat(volumeSlider.value);
+        localStorage.setItem('soundskyVolume', globalVolume);
+        if (window.soundskyWavesurfers) {
+            Object.values(window.soundskyWavesurfers).forEach(ws => {
+                if (ws && ws.setVolume) ws.setVolume(globalVolume);
+            });
+        }
+    };
+    // Add to topNav
+    volumeContainer.appendChild(volumeBtn);
+    volumeContainer.appendChild(volumeSlider);
+    topNav.appendChild(volumeContainer);
 }
 
 async function setCurrentUserAvatar() {
@@ -651,7 +709,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                         // Re-fetch comments
                         const commentSection = document.getElementById(`comments-${post.cid}`);
                         if (commentSection) {
-                            commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">Loading...</div>';
+                            commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">Loading Library...</div>';
                             try {
                                 const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
                                 const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
@@ -1352,6 +1410,65 @@ if (!document.getElementById('post-title-link-style')) {
     }
     .post-title-link:hover {
       text-decoration: underline;
+    }
+    `;
+    document.head.appendChild(style);
+}
+
+// Add custom CSS for .volume-slider if not present
+if (!document.getElementById('volume-slider-style')) {
+    const style = document.createElement('style');
+    style.id = 'volume-slider-style';
+    style.textContent = `
+    input[type='range'].volume-slider {
+      background: transparent;
+    }
+    input[type='range'].volume-slider::-webkit-slider-thumb {
+      width: 1.5rem;
+      height: 1.5rem;
+      background: #2563eb;
+      border-radius: 9999px;
+      border: none;
+      box-shadow: 0 0 2px #0003;
+      cursor: pointer;
+    }
+    input[type='range'].volume-slider::-webkit-slider-runnable-track {
+      background: #e5e7eb;
+      border-radius: 0.75rem;
+      width: 100%;
+      height: 100%;
+    }
+    input[type='range'].volume-slider:focus {
+      outline: none;
+    }
+    input[type='range'].volume-slider::-moz-range-thumb {
+      width: 1.5rem;
+      height: 1.5rem;
+      background: #2563eb;
+      border-radius: 9999px;
+      border: none;
+      box-shadow: 0 0 2px #0003;
+      cursor: pointer;
+    }
+    input[type='range'].volume-slider::-moz-range-track {
+      background: #e5e7eb;
+      border-radius: 0.75rem;
+      width: 100%;
+      height: 100%;
+    }
+    input[type='range'].volume-slider::-ms-thumb {
+      width: 1.5rem;
+      height: 1.5rem;
+      background: #2563eb;
+      border-radius: 9999px;
+      border: none;
+      box-shadow: 0 0 2px #0003;
+      cursor: pointer;
+    }
+    input[type='range'].volume-slider::-ms-fill-lower,
+    input[type='range'].volume-slider::-ms-fill-upper {
+      background: #e5e7eb;
+      border-radius: 0.75rem;
     }
     `;
     document.head.appendChild(style);
