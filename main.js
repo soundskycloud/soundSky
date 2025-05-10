@@ -150,22 +150,46 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
             localCursor = feed && feed.data && feed.data.cursor || null;
             lastCursor = localCursor;
             // Filter for audio posts only
-            const audioPosts = feed && feed.data && feed.data.feed
-                ? feed.data.feed.filter(item => {
-                    const post = item.post || item;
-                    const embed = post.record && post.record.embed;
-                    let fileEmbed = null;
-                    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                    return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                })
-                : (feed && feed.data && feed.data.posts || []).filter(post => {
-                    const embed = post.record && post.record.embed;
-                    let fileEmbed = null;
-                    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                    return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                });
+            let audioPosts;
+            if (mode === 'home') {
+                audioPosts = feed && feed.data && feed.data.feed
+                    ? feed.data.feed.filter(item => {
+                        const post = item.post || item;
+                        const tags = post.record && post.record.tags;
+                        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
+                        const embed = post.record && post.record.embed;
+                        let fileEmbed = null;
+                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+                    })
+                    : (feed && feed.data && feed.data.posts || []).filter(post => {
+                        const tags = post.record && post.record.tags;
+                        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
+                        const embed = post.record && post.record.embed;
+                        let fileEmbed = null;
+                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+                    });
+            } else {
+                audioPosts = feed && feed.data && feed.data.feed
+                    ? feed.data.feed.filter(item => {
+                        const post = item.post || item;
+                        const embed = post.record && post.record.embed;
+                        let fileEmbed = null;
+                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+                    })
+                    : (feed && feed.data && feed.data.posts || []).filter(post => {
+                        const embed = post.record && post.record.embed;
+                        let fileEmbed = null;
+                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+                    });
+            }
             if (audioPosts && audioPosts.length > 0) {
                 foundAudio = true;
                 newAudioPosts = newAudioPosts.concat(audioPosts);
