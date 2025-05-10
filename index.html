@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SoundSky - Audio Social Network</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: 'class' }
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -129,11 +132,11 @@
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100">
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
         <div class="hidden md:flex md:flex-shrink-0">
-            <div class="flex flex-col w-64 border-r border-gray-200 bg-white">
+            <div class="flex flex-col w-64 border-r border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
                 <div class="flex items-center h-16 px-4 border-b border-gray-200">
                     <div class="flex items-center">
                         <i class="fas fa-wave-square text-blue-500 text-2xl mr-2"></i>
@@ -160,9 +163,9 @@
         </div>
         
         <!-- Main content -->
-        <div class="flex flex-col flex-1 overflow-hidden">
+        <div class="flex flex-col flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
             <!-- Top navigation -->
-            <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white">
+            <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
                 <div class="flex items-center md:hidden">
                     <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
                         <i class="fas fa-bars"></i>
@@ -183,11 +186,17 @@
                 </div>
                 
                 <div class="flex items-center space-x-4">
-                    <button class="md:hidden text-gray-500 hover:text-gray-700 focus:outline-none">
-                        <i class="fas fa-search"></i>
-                    </button>
-                    <button class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none">
-                        <i class="fas fa-bell"></i>
+                    <!-- Mobile nav: Feed and Discover -->
+                    <nav class="flex md:hidden space-x-2 mr-2">
+                        <a href="#" id="topnav-feed" class="flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg">
+                            <i class="fas fa-home mr-2"></i>Feed
+                        </a>
+                        <a href="#" id="topnav-discover" class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
+                            <i class="fas fa-compass mr-2"></i>Discover
+                        </a>
+                    </nav>
+                    <button id="theme-toggle" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none" title="Toggle light/dark mode">
+                        <i id="theme-toggle-icon" class="fas fa-moon"></i>
                     </button>
                     <div class="relative">
                         <button class="flex items-center text-sm rounded-full focus:outline-none">
@@ -198,10 +207,10 @@
             </div>
             
             <!-- Content area -->
-            <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+            <div class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
                 <div class="max-w-4xl mx-auto">
                     <!-- Create Audio Post -->
-                    <div id="create-audio-post" class="bg-white rounded-xl shadow-sm p-4 mb-6">
+                    <div id="create-audio-post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
                         <form id="audio-post-form" class="flex flex-col gap-3">
                             <div class="flex items-center gap-3">
                                 <label for="audio-file" class="flex items-center gap-2 cursor-pointer w-full">
@@ -249,6 +258,47 @@
           label.textContent = input.files && input.files.length ? input.files[0].name : 'Choose MP3 file…';
         });
       }
+    });
+    </script>
+    <script>
+    // Light/dark mode toggle with localStorage persistence
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggleBtn = document.getElementById('theme-toggle');
+      const icon = document.getElementById('theme-toggle-icon');
+      if (!toggleBtn || !icon) return;
+      // Restore theme from localStorage or system
+      const userTheme = localStorage.getItem('soundsky-theme');
+      if (userTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else if (userTheme === 'light') {
+        document.documentElement.classList.remove('dark');
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      }
+      function setIcon() {
+        if (document.documentElement.classList.contains('dark')) {
+          icon.classList.remove('fa-moon');
+          icon.classList.add('fa-sun');
+        } else {
+          icon.classList.remove('fa-sun');
+          icon.classList.add('fa-moon');
+        }
+      }
+      setIcon();
+      toggleBtn.onclick = function() {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('soundsky-theme', isDark ? 'dark' : 'light');
+        setIcon();
+      };
+    });
+    </script>
+    <script>
+    // Mobile nav logic: make topnav-feed and topnav-discover trigger the same as sidebar
+    document.addEventListener('DOMContentLoaded', function() {
+      var topFeed = document.getElementById('topnav-feed');
+      var topDiscover = document.getElementById('topnav-discover');
+      if (topFeed) topFeed.onclick = function(e) { e.preventDefault(); document.getElementById('nav-feed').click(); };
+      if (topDiscover) topDiscover.onclick = function(e) { e.preventDefault(); document.getElementById('nav-discover').click(); };
     });
     </script>
 </body>
