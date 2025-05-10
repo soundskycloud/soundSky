@@ -88,7 +88,34 @@ async function setCurrentUserAvatar() {
 let loadedAudioPosts = [];
 let nextCursor = null;
 
-async function fetchSoundskyFeed({ append = false } = {}) {
+// Sidebar navigation logic
+function setActiveNav(id) {
+    document.querySelectorAll('#nav-home, #nav-discover, #nav-likes').forEach(el => {
+        el.classList.remove('bg-blue-500', 'text-white');
+        el.classList.add('text-gray-700');
+    });
+    const active = document.getElementById(id);
+    if (active) {
+        active.classList.add('bg-blue-500', 'text-white');
+        active.classList.remove('text-gray-700');
+    }
+}
+
+// Add event listeners for nav
+const navHome = document.getElementById('nav-home');
+const navDiscover = document.getElementById('nav-discover');
+const navLikes = document.getElementById('nav-likes');
+if (navHome) navHome.onclick = (e) => { e.preventDefault(); setActiveNav('nav-home'); fetchSoundskyFeed({ mode: 'home' }); };
+if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
+if (navLikes) navLikes.onclick = (e) => {
+    e.preventDefault();
+    setActiveNav('nav-likes');
+    navLikes.classList.add('opacity-50', 'cursor-not-allowed');
+    fetchSoundskyFeed({ mode: 'likes' });
+};
+
+// Update fetchSoundskyFeed to accept mode
+async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
     feedLoading.classList.remove('hidden');
     if (!append) {
         feedContainer.innerHTML = '';
@@ -101,29 +128,49 @@ async function fetchSoundskyFeed({ append = false } = {}) {
         let localCursor = nextCursor;
         let newAudioPosts = [];
         let lastCursor = null;
-        // Keep fetching until we find at least one audio post or run out of timeline
         do {
-            const params = { limit: 50 };
-            if (localCursor) params.cursor = localCursor;
-            const feed = await agent.getTimeline(params);
-            localCursor = feed.data.cursor || null;
+            let feed;
+            if (mode === 'home') {
+                const params = { limit: 50 };
+                if (localCursor) params.cursor = localCursor;
+                feed = await agent.getTimeline(params);
+            } else if (mode === 'likes') {
+                feedContainer.innerHTML = '<div class="text-center text-gray-500 py-8">Sorry, Bluesky does not yet support listing all your liked posts.</div>';
+                feedLoading.classList.add('hidden');
+                return;
+            } else if (mode === 'discover') {
+                const params = { q: '#soundskyaudio', limit: 50 };
+                if (localCursor) params.cursor = localCursor;
+                feed = await agent.api.app.bsky.feed.searchPosts(params);
+            } else {
+                const params = { limit: 50 };
+                if (localCursor) params.cursor = localCursor;
+                feed = await agent.getTimeline(params);
+            }
+            localCursor = feed && feed.data && feed.data.cursor || null;
             lastCursor = localCursor;
             // Filter for audio posts only
-            const audioPosts = feed.data.feed.filter(item => {
-                const post = item.post || item;
-                const embed = post.record && post.record.embed;
-                let fileEmbed = null;
-                if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-            });
-            if (audioPosts.length > 0) {
+            const audioPosts = feed && feed.data && feed.data.feed
+                ? feed.data.feed.filter(item => {
+                    const post = item.post || item;
+                    const embed = post.record && post.record.embed;
+                    let fileEmbed = null;
+                    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                    return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+                })
+                : (feed && feed.data && feed.data.posts || []).filter(post => {
+                    const embed = post.record && post.record.embed;
+                    let fileEmbed = null;
+                    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                    return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+                });
+            if (audioPosts && audioPosts.length > 0) {
                 foundAudio = true;
                 newAudioPosts = newAudioPosts.concat(audioPosts);
             }
-            // If appending, break after first batch with audio
-            if (append && audioPosts.length > 0) break;
-            // If not appending, keep going until we find at least one audio post or run out
+            if (append && audioPosts && audioPosts.length > 0) break;
         } while (!foundAudio && localCursor);
         nextCursor = lastCursor;
         if (append) {
@@ -206,8 +253,11 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             if (audioBlobUrl && audioWaveformId) {
                 audioHtml = `
                   <div class="flex items-center gap-2 mt-3">
-                    <button class="wavesurfer-play-btn bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center" data-waveid="${audioWaveformId}">
-                      <span class="wavesurfer-play-icon">▶️</span>
+                    <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
+                      <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
+                        <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
+                      </svg>
                     </button>
                     <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
                       <div class="wavesurfer-time">0:00</div>
@@ -229,9 +279,9 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         const reposted = post.viewer && post.viewer.repost;
         const likeCount = post.likeCount || 0;
         const repostCount = post.repostCount || 0;
-        let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}">
+        let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}">
             <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
-        let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}">
+        let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
             <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
         if (text.trim() || audioHtml) {
             html += `
@@ -301,23 +351,26 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             // Play/pause button
             const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
             if (playBtn) {
+                const svg = playBtn.querySelector('.wavesurfer-play-icon');
                 playBtn.onclick = () => {
                     if (wavesurfer.isPlaying()) {
                         wavesurfer.pause();
-                        playBtn.querySelector('.wavesurfer-play-icon').textContent = '▶️';
+                        // Set to play icon
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                     } else {
                         wavesurfer.play();
-                        playBtn.querySelector('.wavesurfer-play-icon').textContent = '⏸️';
+                        // Set to pause icon
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                     }
                 };
                 wavesurfer.on('finish', () => {
-                    playBtn.querySelector('.wavesurfer-play-icon').textContent = '▶️';
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                 });
                 wavesurfer.on('pause', () => {
-                    playBtn.querySelector('.wavesurfer-play-icon').textContent = '▶️';
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                 });
                 wavesurfer.on('play', () => {
-                    playBtn.querySelector('.wavesurfer-play-icon').textContent = '⏸️';
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                 });
             }
             // Time/duration overlays
@@ -383,6 +436,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 const uri = btn.getAttribute('data-uri');
                 const cid = btn.getAttribute('data-cid');
                 const liked = btn.getAttribute('data-liked') === 'true';
+                const likeUri = btn.getAttribute('data-likeuri');
                 const countSpan = btn.querySelector('span');
                 try {
                     if (!liked) {
@@ -394,13 +448,17 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                         btn.querySelector('i').classList.add('fas');
                         countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
                     } else {
-                        await agent.deleteLike(uri, cid);
-                        btn.setAttribute('data-liked', 'false');
-                        btn.classList.remove('text-blue-500');
-                        btn.classList.add('text-gray-500', 'hover:text-blue-500');
-                        btn.querySelector('i').classList.remove('fas');
-                        btn.querySelector('i').classList.add('far');
-                        countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                        if (likeUri) {
+                            await agent.deleteLike(likeUri);
+                            btn.setAttribute('data-liked', 'false');
+                            btn.classList.remove('text-blue-500');
+                            btn.classList.add('text-gray-500', 'hover:text-blue-500');
+                            btn.querySelector('i').classList.remove('fas');
+                            btn.querySelector('i').classList.add('far');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                        } else {
+                            alert('Could not find like record URI to unlike.');
+                        }
                     }
                 } catch (err) {
                     alert('Failed to like/unlike post: ' + (err.message || err));
@@ -412,6 +470,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 const uri = btn.getAttribute('data-uri');
                 const cid = btn.getAttribute('data-cid');
                 const reposted = btn.getAttribute('data-reposted') === 'true';
+                const repostUri = btn.getAttribute('data-reposturi');
                 const countSpan = btn.querySelector('span');
                 try {
                     if (!reposted) {
@@ -421,11 +480,15 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                         btn.classList.add('text-green-500');
                         countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
                     } else {
-                        await agent.deleteRepost(uri, cid);
-                        btn.setAttribute('data-reposted', 'false');
-                        btn.classList.remove('text-green-500');
-                        btn.classList.add('text-gray-500', 'hover:text-green-500');
-                        countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                        if (repostUri) {
+                            await agent.deleteRepost(repostUri);
+                            btn.setAttribute('data-reposted', 'false');
+                            btn.classList.remove('text-green-500');
+                            btn.classList.add('text-gray-500', 'hover:text-green-500');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                        } else {
+                            alert('Could not find repost record URI to unrepost.');
+                        }
                     }
                 } catch (err) {
                     alert('Failed to repost/unrepost post: ' + (err.message || err));
@@ -479,23 +542,26 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             // Play/pause button
             const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
             if (playBtn) {
+                const svg = playBtn.querySelector('.wavesurfer-play-icon');
                 playBtn.onclick = () => {
                     if (wavesurfer.isPlaying()) {
                         wavesurfer.pause();
-                        playBtn.querySelector('.wavesurfer-play-icon').textContent = '▶️';
+                        // Set to play icon
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                     } else {
                         wavesurfer.play();
-                        playBtn.querySelector('.wavesurfer-play-icon').textContent = '⏸️';
+                        // Set to pause icon
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                     }
                 };
                 wavesurfer.on('finish', () => {
-                    playBtn.querySelector('.wavesurfer-play-icon').textContent = '▶️';
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                 });
                 wavesurfer.on('pause', () => {
-                    playBtn.querySelector('.wavesurfer-play-icon').textContent = '▶️';
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                 });
                 wavesurfer.on('play', () => {
-                    playBtn.querySelector('.wavesurfer-play-icon').textContent = '⏸️';
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                 });
             }
             // Time/duration overlays
@@ -563,13 +629,13 @@ if (audioPostForm) {
             console.log('Blob uploaded:', blob);
             // Create post with #soundskyaudio tag
             const caption = audioCaptionInput.value || '';
-            const text = `${caption} #soundskyaudio`;
+            const text = caption;
             const embed = {
                 $type: 'app.bsky.embed.file',
                 file: blob,
                 mimeType: file.type,
             };
-            const postRes = await agent.post({ text, embed });
+            const postRes = await agent.post({ text, embed, tags: ['soundskyaudio'] });
             console.log('Post created:', postRes);
             audioPostStatus.textContent = 'Posted!';
             audioPostForm.reset();
@@ -582,4 +648,35 @@ if (audioPostForm) {
             audioPostBtn.textContent = 'Post Audio';
         }
     });
+}
+
+// At the end of main.js, inject the CSS for .soundsky-play-btn if not present
+if (!document.getElementById('soundsky-play-btn-style')) {
+    const style = document.createElement('style');
+    style.id = 'soundsky-play-btn-style';
+    style.textContent = `
+    .soundsky-play-btn {
+      width: 48px;
+      height: 48px;
+      border: none;
+      background: none;
+      padding: 0;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.10);
+      transition: transform 0.1s, box-shadow 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      outline: none;
+    }
+    .soundsky-play-btn:focus,
+    .soundsky-play-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 4px 16px rgba(59,130,246,0.18);
+    }
+    .wavesurfer-play-icon {
+      display: block;
+    }
+    `;
+    document.head.appendChild(style);
 } 
