@@ -20,7 +20,12 @@ window.addEventListener('DOMContentLoaded', async () => {
             loginForm.style.display = 'none';
             document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
             setCurrentUserAvatar();
-            fetchSoundskyFeed();
+            const postParam = getPostParamFromUrl();
+            if (postParam) {
+                renderSinglePostView(postParam);
+            } else {
+                fetchSoundskyFeed();
+            }
         } catch (e) {
             localStorage.removeItem('bskySession');
         }
@@ -272,7 +277,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             }
             if (audioBlobUrl && audioWaveformId) {
                 audioHtml = `
-                  <div class="flex items-center gap-2 mt-3">
+                  <div class="flex items-center gap-2 mt-3 audioplayerbox">
                     <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
                       <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
                         <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
@@ -1264,8 +1269,21 @@ function addSinglePostClickHandlers() {
     setTimeout(() => {
         document.querySelectorAll('.post-card').forEach(card => {
             card.onclick = (e) => {
-                // Prevent clicks on buttons/links/forms/inputs inside the card from triggering
-                if (e.target.closest('button') || e.target.closest('form') || e.target.closest('input') || e.target.closest('a')) return;
+                // Prevent clicks on buttons/links/forms/inputs or the player from triggering single mode
+                if (
+                  e.target.closest('button') ||
+                  e.target.closest('form') ||
+                  e.target.closest('input') ||
+                  e.target.closest('a') ||
+                  e.target.closest('.wavesurfer') ||
+                  e.target.closest('.soundsky-play-btn') ||
+                  e.target.classList.contains('wavesurfer') ||
+                  e.target.classList.contains('audioplayerbox') ||
+                  e.target.classList.contains('soundsky-play-btn') ||
+                  e.target.closest('.wavesurfer-play-icon') ||
+                  e.target.closest('svg.wavesurfer-play-icon') ||
+                  e.target.closest('.play-shape')
+                ) return;
                 const postUri = card.getAttribute('data-post-uri');
                 if (postUri) {
                     setPostParamInUrl(postUri);
