@@ -2,11 +2,7 @@
 
 > ATProto/bsky based Soundcloud Alternative
 
-### Status
-
-- Toy
-
-### Demo
+### POC/Demo
 <a href="https://soundsky.glitch.me">
 <img src="https://github.com/user-attachments/assets/b0479e59-0556-4fa1-a0e9-ce54c2e725ce">
 </a>
