@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundSky - Audio Social Network</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        
+        .waveform {
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+            height: 60px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .waveform::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 Q 25 10, 50 30 T 100 30 T 150 30 T 200 30' stroke='%23ffffff' fill='none' stroke-width='2' opacity='0.3'/%3E%3C/svg%3E");
+            background-size: 200px 60px;
+            animation: wave 2s linear infinite;
+        }
+        
+        @keyframes wave {
+            0% { background-position-x: 0; }
+            100% { background-position-x: 200px; }
+        }
+        
+        .playing .waveform::before {
+            animation: wave 0.8s linear infinite;
+        }
+        
+        .progress-bar {
+            height: 4px;
+            background-color: #e2e8f0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        
+        .post-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .audio-visualizer {
+            display: flex;
+            align-items: flex-end;
+            height: 40px;
+            gap: 2px;
+        }
+        
+        .audio-bar {
+            width: 3px;
+            background-color: #3b82f6;
+            border-radius: 2px;
+            animation: equalize 1.5s infinite ease-in-out;
+        }
+        
+        @keyframes equalize {
+            0%, 100% { height: 10px; }
+            50% { height: 20px; }
+        }
+        
+        .audio-bar:nth-child(1) { animation-delay: -0.9s; }
+        .audio-bar:nth-child(2) { animation-delay: -0.6s; }
+        .audio-bar:nth-child(3) { animation-delay: -0.3s; }
+        .audio-bar:nth-child(4) { animation-delay: -0.15s; }
+        .audio-bar:nth-child(5) { animation-delay: -0.05s; }
+        
+        .wavesurfer.waveform {
+            cursor: pointer;
+            position: relative;
+            min-height: 48px;
+            background: transparent;
+        }
+        .wavesurfer-hover {
+            position: absolute;
+            left: 0;
+            top: 0;
+            z-index: 10;
+            pointer-events: none;
+            height: 100%;
+            width: 0;
+            mix-blend-mode: overlay;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .wavesurfer.waveform:hover .wavesurfer-hover {
+            opacity: 1;
+        }
+        .wavesurfer-time,
+        .wavesurfer-duration {
+            position: absolute;
+            z-index: 11;
+            top: 50%;
+            margin-top: -1px;
+            transform: translateY(-50%);
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 2px 6px;
+            color: #ddd;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .wavesurfer-time {
+            left: 0;
+        }
+        .wavesurfer-duration {
+            right: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="hidden md:flex md:flex-shrink-0">
+            <div class="flex flex-col w-64 border-r border-gray-200 bg-white">
+                <div class="flex items-center h-16 px-4 border-b border-gray-200">
+                    <div class="flex items-center">
+                        <i class="fas fa-wave-square text-blue-500 text-2xl mr-2"></i>
+                        <span class="text-xl font-bold text-gray-900">SoundSky</span>
+                    </div>
+                </div>
+                <div class="flex flex-col flex-grow p-4 overflow-y-auto">
+                    <nav class="flex-1 space-y-2">
+                        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-white bg-blue-500 rounded-lg">
+                            <i class="fas fa-home mr-3"></i>
+                            Home
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+                            <i class="fas fa-compass mr-3"></i>
+                            Discover
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+                            <i class="fas fa-heart mr-3"></i>
+                            Likes
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+                            <i class="fas fa-bookmark mr-3"></i>
+                            Collections
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+                            <i class="fas fa-user mr-3"></i>
+                            Profile
+                        </a>
+                    </nav>
+                    
+                    <div class="mt-auto pt-4 border-t border-gray-200">
+                        <div class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg cursor-pointer">
+                            <i class="fas fa-cog mr-3"></i>
+                            Settings
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main content -->
+        <div class="flex flex-col flex-1 overflow-hidden">
+            <!-- Top navigation -->
+            <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white">
+                <div class="flex items-center md:hidden">
+                    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="flex items-center ml-4">
+                        <i class="fas fa-wave-square text-blue-500 text-xl mr-2"></i>
+                        <span class="text-lg font-bold text-gray-900">SoundSky</span>
+                    </div>
+                </div>
+                
+                <div class="flex-1 max-w-xl mx-4 hidden md:block">
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <input type="text" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search tracks, artists, or hashtags">
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button class="md:hidden text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                    <div class="relative">
+                        <button class="flex items-center text-sm rounded-full focus:outline-none">
+                            <img id="current-user-avatar" class="h-8 w-8 rounded-full" src="/default-avatar.png" alt="User profile">
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Content area -->
+            <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+                <div class="max-w-4xl mx-auto">
+                    <!-- Create Audio Post -->
+                    <div id="create-audio-post" class="bg-white rounded-xl shadow-sm p-4 mb-6">
+                        <form id="audio-post-form" class="flex flex-col gap-3">
+                            <div class="flex items-center gap-3">
+                                <input id="audio-file" type="file" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required />
+                            </div>
+                            <textarea id="audio-caption" class="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" rows="2" placeholder="Write a caption..."></textarea>
+                            <button id="audio-post-btn" type="submit" class="self-end px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Post Audio</button>
+                            <div id="audio-post-status" class="text-sm mt-2"></div>
+                        </form>
+                    </div>
+                    
+                    <!-- Feed -->
+                    <div id="feed" class="space-y-4">
+                        <div id="feed-loading" class="text-center text-gray-400 py-8 hidden">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Form -->
+    <div id="login-form" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
+        <div class="bg-white rounded-xl shadow-lg p-8 w-80 flex flex-col items-center">
+            <h2 class="text-xl font-bold mb-4 text-gray-900">Sign in to SoundSky</h2>
+            <input id="username" class="mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="bsky handle (e.g. user.bsky.social)" />
+            <input id="password" type="password" class="mb-4 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="App password" />
+            <button id="login-btn" class="w-full px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Login</button>
+            <div id="login-error" class="text-red-500 text-sm mt-2 hidden"></div>
+            <div class="text-xs text-gray-500 mt-4">Get an app password at <a href="https://bsky.app/settings/app-passwords" target="_blank" class="underline">bsky.app/settings/app-passwords</a></div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js"></script>
+</body>
+</html>
