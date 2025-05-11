@@ -481,418 +481,13 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
     feedContainer.innerHTML = html;
     // After rendering all posts, initialize all WaveSurfer instances
     for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
-        const container = document.getElementById(audioWaveformId);
-        if (container && window.WaveSurfer) {
-            // Create canvas for gradients
-            const canvas = document.createElement('canvas');
-            canvas.width = 32; canvas.height = 48;
-            const ctx = canvas.getContext('2d');
-            // SoundCloud-style waveform gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-            gradient.addColorStop(0, '#656666');
-            gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-            gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-            gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-            gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-            gradient.addColorStop(1, '#B1B1B1');
-            // Progress gradient
-            const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-            progressGradient.addColorStop(0, '#EE772F');
-            progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-            progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-            progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-            progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-            progressGradient.addColorStop(1, '#F6B094');
-            // Init WaveSurfer
-            const wavesurfer = window.WaveSurfer.create({
-                container: `#${audioWaveformId}`,
-                waveColor: gradient,
-                progressColor: progressGradient,
-                height: 48,
-                barWidth: 2,
-                responsive: true,
-                cursorColor: '#3b82f6',
-                backend: 'MediaElement',
-            });
-            wavesurfer.load(audioBlobUrl);
-            // Store instance globally
-            window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
-            // Play/pause button
-            const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
-            if (playBtn) {
-                const svg = playBtn.querySelector('.wavesurfer-play-icon');
-                playBtn.onclick = () => {
-                    // Pause all other players before playing this one
-                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                            ws.pause();
-                        }
-                    });
-                    if (wavesurfer.isPlaying()) {
-                        wavesurfer.pause();
-                        // Set to play icon
-                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                    } else {
-                        wavesurfer.play();
-                        // Set to pause icon
-                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                    }
-                };
-                wavesurfer.on('finish', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                });
-                wavesurfer.on('pause', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                });
-                wavesurfer.on('play', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                });
-                wavesurfer.on('click', () => {
-                  Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                // wavesurfer.pause();
-                                // svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
-                })
-            }
-            // Time/duration overlays
-            const timeEl = container.querySelector('.wavesurfer-time');
-            const durationEl = container.querySelector('.wavesurfer-duration');
-            const formatTime = (seconds) => {
-                const minutes = Math.floor(seconds / 60);
-                const secondsRemainder = Math.round(seconds) % 60;
-                const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-                return `${minutes}:${paddedSeconds}`;
-            };
-            wavesurfer.on('decode', (duration) => {
-                if (durationEl) durationEl.textContent = formatTime(duration);
-            });
-            wavesurfer.on('timeupdate', (currentTime) => {
-                if (timeEl) timeEl.textContent = formatTime(currentTime);
-            });
-            // Hover effect
-            const hoverEl = container.querySelector('.wavesurfer-hover');
-            container.addEventListener('pointermove', (e) => {
-                if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
-            });
-            container.addEventListener('pointerenter', () => {
-                if (hoverEl) hoverEl.style.opacity = 1;
-            });
-            container.addEventListener('pointerleave', () => {
-                if (hoverEl) hoverEl.style.opacity = 0;
-            });
-        }
+        setTimeout(() => initWaveSurfer(audioWaveformId, audioBlobUrl), 0);
     }
-    // After rendering all posts, add event listeners for delete, like, and repost buttons
-    setTimeout(() => {
-        document.querySelectorAll('.delete-post-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                let uri = btn.getAttribute('data-uri');
-                let deepLog = '';
-                try { deepLog = JSON.stringify(uri); } catch { deepLog = String(uri); }
-                console.log('Attempting to delete post. URI:', uri, 'Type:', typeof uri, 'Deep:', deepLog);
-                if (typeof uri !== 'string') uri = String(uri);
-                if (window.confirm('Are you sure you want to delete this post?')) {
-                    try {
-                        // Parse the AT URI: at://did:plc:.../collection/rkey
-                        const uriParts = uri.replace('at://', '').split('/');
-                        const did = uriParts[0];
-                        const collection = uriParts[1];
-                        const rkey = uriParts[2];
-                        console.log('Calling deleteRecord with:', { repo: did, collection, rkey });
-                        await agent.api.com.atproto.repo.deleteRecord({
-                            repo: did,
-                            collection,
-                            rkey,
-                        });
-                        fetchSoundskyFeed();
-                    } catch (err) {
-                        console.error('Delete post error:', err);
-                        alert('Failed to delete post: ' + (err.message || err));
-                    }
-                }
-            };
-        });
-        document.querySelectorAll('.like-post-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                const uri = btn.getAttribute('data-uri');
-                const cid = btn.getAttribute('data-cid');
-                const liked = btn.getAttribute('data-liked') === 'true';
-                const likeUri = btn.getAttribute('data-likeuri');
-                const countSpan = btn.querySelector('span');
-                try {
-                    if (!liked) {
-                        await agent.like(uri, cid);
-                        btn.setAttribute('data-liked', 'true');
-                        btn.classList.remove('text-gray-500', 'hover:text-blue-500');
-                        btn.classList.add('text-blue-500');
-                        btn.querySelector('i').classList.remove('far');
-                        btn.querySelector('i').classList.add('fas');
-                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                    } else {
-                        if (likeUri) {
-                            await agent.deleteLike(likeUri);
-                            btn.setAttribute('data-liked', 'false');
-                            btn.classList.remove('text-blue-500');
-                            btn.classList.add('text-gray-500', 'hover:text-blue-500');
-                            btn.querySelector('i').classList.remove('fas');
-                            btn.querySelector('i').classList.add('far');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                        } else {
-                            alert('Could not find like record URI to unlike.');
-                        }
-                    }
-                } catch (err) {
-                    alert('Failed to like/unlike post: ' + (err.message || err));
-                }
-            };
-        });
-        document.querySelectorAll('.repost-post-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                const uri = btn.getAttribute('data-uri');
-                const cid = btn.getAttribute('data-cid');
-                const reposted = btn.getAttribute('data-reposted') === 'true';
-                const repostUri = btn.getAttribute('data-reposturi');
-                const countSpan = btn.querySelector('span');
-                try {
-                    if (!reposted) {
-                        await agent.repost(uri, cid);
-                        btn.setAttribute('data-reposted', 'true');
-                        btn.classList.remove('text-gray-500', 'hover:text-green-500');
-                        btn.classList.add('text-green-500');
-                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                    } else {
-                        if (repostUri) {
-                            await agent.deleteRepost(repostUri);
-                            btn.setAttribute('data-reposted', 'false');
-                            btn.classList.remove('text-green-500');
-                            btn.classList.add('text-gray-500', 'hover:text-green-500');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                        } else {
-                            alert('Could not find repost record URI to unrepost.');
-                        }
-                    }
-                } catch (err) {
-                    alert('Failed to repost/unrepost post: ' + (err.message || err));
-                }
-            };
-        });
-        document.querySelectorAll('.follow-user-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                const did = btn.getAttribute('data-did');
-                btn.disabled = true;
-                btn.textContent = 'Following...';
-                try {
-                    await agent.follow(did);
-                    btn.textContent = 'Following';
-                    btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
-                    btn.classList.add('text-gray-500', 'border-gray-200');
-                } catch (err) {
-                    btn.textContent = 'Follow';
-                    btn.disabled = false;
-                    alert('Failed to follow user: ' + (err.message || err));
-                }
-            };
-        });
-        // For each post, fetch and render comments
-        audioPosts.forEach(async (item) => {
-            const post = item.post || item;
-            const commentSection = document.getElementById(`comments-${post.cid}`);
-            if (!commentSection) return;
-            try {
-                // Fetch replies using getPostThread
-                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                const replies = (threadRes.data.thread?.replies || []).slice(0, 5); // Show up to 5 recent replies
-                if (replies.length === 0) {
-                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                } else {
-                    commentSection.innerHTML = replies.map(reply => {
-                        const author = reply.post.author;
-                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                        const name = author.displayName || author.handle || 'Unknown';
-                        const text = reply.post.record.text || '';
-                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
-                    }).join('');
-                }
-            } catch (err) {
-                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
-            }
-        });
-        // For each post, handle comment form submit
-        audioPosts.forEach((item) => {
-            const post = item.post || item;
-            const form = document.getElementById(`comment-form-${post.cid}`);
-            const input = document.getElementById(`comment-input-${post.cid}`);
-            if (form && input) {
-                form.onsubmit = async (e) => {
-                    e.preventDefault();
-                    const text = input.value.trim();
-                    if (!text) return;
-                    form.querySelector('button[type="submit"]').disabled = true;
-                    try {
-                        // Post reply
-                        await agent.post({
-                            text,
-                            reply: {
-                                root: { cid: post.cid, uri: post.uri },
-                                parent: { cid: post.cid, uri: post.uri }
-                            }
-                        });
-                        input.value = '';
-                        // Re-fetch comments
-                        const commentSection = document.getElementById(`comments-${post.cid}`);
-                        if (commentSection) {
-                            commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">Loading Library...</div>';
-                            try {
-                                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                                const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                                if (replies.length === 0) {
-                                    commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">No comments yet.</div>';
-                                } else {
-                                    commentSection.innerHTML = replies.map(reply => {
-                                        const author = reply.post.author;
-                                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                                        const name = author.displayName || author.handle || 'Unknown';
-                                        const text = reply.post.record.text || '';
-                                        return `<div class=\\\"flex items-start gap-2\\\"><img src=\\\"${avatar}\\\" class=\\\"h-7 w-7 rounded-full\\\" alt=\\\"${name}\\\" onerror=\\\"this.onerror=null;this.src='${defaultAvatar}';\\\"><div><span class=\\\"font-medium text-xs text-gray-900 dark:text-gray-100\\\">${name}</span><p class=\\\"text-xs text-gray-700 dark:text-gray-200\\\">${text}</p></div></div>`;
-                                    }).join('');
-                                }
-                            } catch (err) {
-                                commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
-                            }
-                        }
-                    } catch (err) {
-                        alert('Failed to post comment: ' + (err.message || err));
-                    } finally {
-                        form.querySelector('button[type="submit"]').disabled = false;
-                    }
-                };
-            }
-        });
-    }, 0);
     // At the end, add Load More button if needed
     if (showLoadMore) {
         html += `<div class="flex justify-center py-4"><button id="load-more-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Load More</button></div>`;
     }
     feedContainer.innerHTML = html;
-    // After rendering all posts, initialize all WaveSurfer instances
-    for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
-        const container = document.getElementById(audioWaveformId);
-        if (container && window.WaveSurfer) {
-            // Create canvas for gradients
-            const canvas = document.createElement('canvas');
-            canvas.width = 32; canvas.height = 48;
-            const ctx = canvas.getContext('2d');
-            // SoundCloud-style waveform gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-            gradient.addColorStop(0, '#656666');
-            gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-            gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-            gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-            gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-            gradient.addColorStop(1, '#B1B1B1');
-            // Progress gradient
-            const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-            progressGradient.addColorStop(0, '#EE772F');
-            progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-            progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-            progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-            progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-            progressGradient.addColorStop(1, '#F6B094');
-            // Init WaveSurfer
-            const wavesurfer = window.WaveSurfer.create({
-                container: `#${audioWaveformId}`,
-                waveColor: gradient,
-                progressColor: progressGradient,
-                height: 48,
-                barWidth: 2,
-                responsive: true,
-                cursorColor: '#3b82f6',
-                backend: 'MediaElement',
-            });
-            wavesurfer.load(audioBlobUrl);
-            // Store instance globally
-            window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
-            // Play/pause button
-            const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
-            if (playBtn) {
-                const svg = playBtn.querySelector('.wavesurfer-play-icon');
-                playBtn.onclick = () => {
-                    // Pause all other players before playing this one
-                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                            ws.pause();
-                        }
-                    });
-                    if (wavesurfer.isPlaying()) {
-                        wavesurfer.pause();
-                        // Set to play icon
-                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                    } else {
-                        wavesurfer.play();
-                        // Set to pause icon
-                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                    }
-                };
-                wavesurfer.on('finish', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                });
-                wavesurfer.on('pause', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                });
-                wavesurfer.on('play', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                });
-                wavesurfer.on('click', () => {
-                  Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                // wavesurfer.pause();
-                                // svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
-                })
-            }
-            // Time/duration overlays
-            const timeEl = container.querySelector('.wavesurfer-time');
-            const durationEl = container.querySelector('.wavesurfer-duration');
-            const formatTime = (seconds) => {
-                const minutes = Math.floor(seconds / 60);
-                const secondsRemainder = Math.round(seconds) % 60;
-                const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-                return `${minutes}:${paddedSeconds}`;
-            };
-            wavesurfer.on('decode', (duration) => {
-                if (durationEl) durationEl.textContent = formatTime(duration);
-            });
-            wavesurfer.on('timeupdate', (currentTime) => {
-                if (timeEl) timeEl.textContent = formatTime(currentTime);
-            });
-            // Hover effect
-            const hoverEl = container.querySelector('.wavesurfer-hover');
-            container.addEventListener('pointermove', (e) => {
-                if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
-            });
-            container.addEventListener('pointerenter', () => {
-                if (hoverEl) hoverEl.style.opacity = 1;
-            });
-            container.addEventListener('pointerleave', () => {
-                if (hoverEl) hoverEl.style.opacity = 0;
-            });
-        }
-    }
     // Load More button event
     if (showLoadMore) {
         const loadMoreBtn = document.getElementById('load-more-btn');
@@ -1145,275 +740,184 @@ async function renderSinglePostView(postUri) {
     setTimeout(() => {
         const container = document.getElementById(audioWaveformId);
         if (container && window.WaveSurfer && audioBlobUrl) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 32; canvas.height = 48;
-            const ctx = canvas.getContext('2d');
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-            gradient.addColorStop(0, '#656666');
-            gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-            gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-            gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-            gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-            gradient.addColorStop(1, '#B1B1B1');
-            const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-            progressGradient.addColorStop(0, '#EE772F');
-            progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-            progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-            progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-            progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-            progressGradient.addColorStop(1, '#F6B094');
-            const wavesurfer = window.WaveSurfer.create({
-                container: `#${audioWaveformId}`,
-                waveColor: gradient,
-                progressColor: progressGradient,
-                height: 48,
-                barWidth: 2,
-                responsive: true,
-                cursorColor: '#3b82f6',
-                backend: 'MediaElement',
-            });
-            wavesurfer.load(audioBlobUrl);
-            window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
-            const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
-            if (playBtn) {
-                const svg = playBtn.querySelector('.wavesurfer-play-icon');
-                playBtn.onclick = () => {
-                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                            ws.pause();
-                        }
-                    });
-                    if (wavesurfer.isPlaying()) {
-                        wavesurfer.pause();
-                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                    } else {
-                        wavesurfer.play();
-                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                    }
-                };
-                wavesurfer.on('finish', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                });
-                wavesurfer.on('pause', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                });
-                wavesurfer.on('play', () => {
-                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                });
-                wavesurfer.on('click', () => {
-                  Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                // wavesurfer.pause();
-                                // svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
-                })
-            }
-            const timeEl = container.querySelector('.wavesurfer-time');
-            const durationEl = container.querySelector('.wavesurfer-duration');
-            const formatTime = (seconds) => {
-                const minutes = Math.floor(seconds / 60);
-                const secondsRemainder = Math.round(seconds) % 60;
-                const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-                return `${minutes}:${paddedSeconds}`;
-            };
-            wavesurfer.on('decode', (duration) => {
-                if (durationEl) durationEl.textContent = formatTime(duration);
-            });
-            wavesurfer.on('timeupdate', (currentTime) => {
-                if (timeEl) timeEl.textContent = formatTime(currentTime);
-            });
-            const hoverEl = container.querySelector('.wavesurfer-hover');
-            container.addEventListener('pointermove', (e) => {
-                if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
-            });
-            container.addEventListener('pointerenter', () => {
-                if (hoverEl) hoverEl.style.opacity = 1;
-            });
-            container.addEventListener('pointerleave', () => {
-                if (hoverEl) hoverEl.style.opacity = 0;
-            });
+            initWaveSurfer(audioWaveformId, audioBlobUrl);
         }
-        // Comments fetch and post logic (reuse from feed)
-        (async () => {
-            const commentSection = document.getElementById(`comments-${post.cid}`);
-            if (!commentSection) return;
+    }, 0);
+    // Comments fetch and post logic (reuse from feed)
+    (async () => {
+        const commentSection = document.getElementById(`comments-${post.cid}`);
+        if (!commentSection) return;
+        try {
+            const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+            const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
+            if (replies.length === 0) {
+                commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+            } else {
+                commentSection.innerHTML = replies.map(reply => {
+                    const author = reply.post.author;
+                    const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                    const name = author.displayName || author.handle || 'Unknown';
+                    const text = reply.post.record.text || '';
+                    return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
+                }).join('');
+            }
+        } catch (err) {
+            commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
+        }
+    })();
+    const form = document.getElementById(`comment-form-${post.cid}`);
+    const input = document.getElementById(`comment-input-${post.cid}`);
+    if (form && input) {
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
+            form.querySelector('button[type="submit"]').disabled = true;
             try {
-                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                if (replies.length === 0) {
-                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                } else {
-                    commentSection.innerHTML = replies.map(reply => {
-                        const author = reply.post.author;
-                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                        const name = author.displayName || author.handle || 'Unknown';
-                        const text = reply.post.record.text || '';
-                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
-                    }).join('');
+                // Post reply
+                await agent.post({
+                    text,
+                    reply: {
+                        root: { cid: post.cid, uri: post.uri },
+                        parent: { cid: post.cid, uri: post.uri }
+                    }
+                });
+                input.value = '';
+                // Re-fetch comments
+                const commentSection = document.getElementById(`comments-${post.cid}`);
+                if (commentSection) {
+                    commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">Loading Library...</div>';
+                    try {
+                        const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+                        const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
+                        if (replies.length === 0) {
+                            commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">No comments yet.</div>';
+                        } else {
+                            commentSection.innerHTML = replies.map(reply => {
+                                const author = reply.post.author;
+                                const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                                const name = author.displayName || author.handle || 'Unknown';
+                                const text = reply.post.record.text || '';
+                                return `<div class=\\\"flex items-start gap-2\\\"><img src=\\\"${avatar}\\\" class=\\\"h-7 w-7 rounded-full\\\" alt=\\\"${name}\\\" onerror=\\\"this.onerror=null;this.src='${defaultAvatar}';\\\"><div><span class=\\\"font-medium text-xs text-gray-900 dark:text-gray-100\\\">${name}</span><p class=\\\"text-xs text-gray-700 dark:text-gray-200\\\">${text}</p></div></div>`;
+                            }).join('');
+                        }
+                    } catch (err) {
+                        commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
+                    }
                 }
             } catch (err) {
-                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
+                alert('Failed to post comment: ' + (err.message || err));
+            } finally {
+                form.querySelector('button[type="submit"]').disabled = false;
             }
-        })();
-        const form = document.getElementById(`comment-form-${post.cid}`);
-        const input = document.getElementById(`comment-input-${post.cid}`);
-        if (form && input) {
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const text = input.value.trim();
-                if (!text) return;
-                form.querySelector('button[type="submit"]').disabled = true;
+        };
+    }
+    // Like, repost, delete, follow, etc. event listeners (reuse from feed)
+    setTimeout(() => {
+        document.querySelectorAll('.delete-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                let uri = btn.getAttribute('data-uri');
+                if (typeof uri !== 'string') uri = String(uri);
+                if (window.confirm('Are you sure you want to delete this post?')) {
+                    try {
+                        const uriParts = uri.replace('at://', '').split('/');
+                        const did = uriParts[0];
+                        const collection = uriParts[1];
+                        const rkey = uriParts[2];
+                        await agent.api.com.atproto.repo.deleteRecord({
+                            repo: did,
+                            collection,
+                            rkey,
+                        });
+                        clearAllParamsInUrl();
+                        fetchSoundskyFeed();
+                    } catch (err) {
+                        alert('Failed to delete post: ' + (err.message || err));
+                    }
+                }
+            };
+        });
+        document.querySelectorAll('.like-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const uri = btn.getAttribute('data-uri');
+                const cid = btn.getAttribute('data-cid');
+                const liked = btn.getAttribute('data-liked') === 'true';
+                const likeUri = btn.getAttribute('data-likeuri');
+                const countSpan = btn.querySelector('span');
                 try {
-                    await agent.post({
-                        text,
-                        reply: {
-                            root: { cid: post.cid, uri: post.uri },
-                            parent: { cid: post.cid, uri: post.uri }
-                        }
-                    });
-                    input.value = '';
-                    const commentSection = document.getElementById(`comments-${post.cid}`);
-                    if (commentSection) {
-                        commentSection.innerHTML = '<div class="text-gray-400 text-xs">Loading...</div>';
-                        try {
-                            const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                            const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                            if (replies.length === 0) {
-                                commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                            } else {
-                                commentSection.innerHTML = replies.map(reply => {
-                                    const author = reply.post.author;
-                                    const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                                    const name = author.displayName || author.handle || 'Unknown';
-                                    const text = reply.post.record.text || '';
-                                    return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
-                                }).join('');
-                            }
-                        } catch (err) {
-                            commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
+                    if (!liked) {
+                        await agent.like(uri, cid);
+                        btn.setAttribute('data-liked', 'true');
+                        btn.classList.remove('text-gray-500', 'hover:text-blue-500');
+                        btn.classList.add('text-blue-500');
+                        btn.querySelector('i').classList.remove('far');
+                        btn.querySelector('i').classList.add('fas');
+                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                    } else {
+                        if (likeUri) {
+                            await agent.deleteLike(likeUri);
+                            btn.setAttribute('data-liked', 'false');
+                            btn.classList.remove('text-blue-500');
+                            btn.classList.add('text-gray-500', 'hover:text-blue-500');
+                            btn.querySelector('i').classList.remove('fas');
+                            btn.querySelector('i').classList.add('far');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                        } else {
+                            alert('Could not find like record URI to unlike.');
                         }
                     }
                 } catch (err) {
-                    alert('Failed to post comment: ' + (err.message || err));
-                } finally {
-                    form.querySelector('button[type="submit"]').disabled = false;
+                    alert('Failed to like/unlike post: ' + (err.message || err));
                 }
             };
-        }
-        // Like, repost, delete, follow, etc. event listeners (reuse from feed)
-        setTimeout(() => {
-            document.querySelectorAll('.delete-post-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    let uri = btn.getAttribute('data-uri');
-                    if (typeof uri !== 'string') uri = String(uri);
-                    if (window.confirm('Are you sure you want to delete this post?')) {
-                        try {
-                            const uriParts = uri.replace('at://', '').split('/');
-                            const did = uriParts[0];
-                            const collection = uriParts[1];
-                            const rkey = uriParts[2];
-                            await agent.api.com.atproto.repo.deleteRecord({
-                                repo: did,
-                                collection,
-                                rkey,
-                            });
-                            clearAllParamsInUrl();
-                            fetchSoundskyFeed();
-                        } catch (err) {
-                            alert('Failed to delete post: ' + (err.message || err));
-                        }
-                    }
-                };
-            });
-            document.querySelectorAll('.like-post-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    const uri = btn.getAttribute('data-uri');
-                    const cid = btn.getAttribute('data-cid');
-                    const liked = btn.getAttribute('data-liked') === 'true';
-                    const likeUri = btn.getAttribute('data-likeuri');
-                    const countSpan = btn.querySelector('span');
-                    try {
-                        if (!liked) {
-                            await agent.like(uri, cid);
-                            btn.setAttribute('data-liked', 'true');
-                            btn.classList.remove('text-gray-500', 'hover:text-blue-500');
-                            btn.classList.add('text-blue-500');
-                            btn.querySelector('i').classList.remove('far');
-                            btn.querySelector('i').classList.add('fas');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+        });
+        document.querySelectorAll('.repost-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const uri = btn.getAttribute('data-uri');
+                const cid = btn.getAttribute('data-cid');
+                const reposted = btn.getAttribute('data-reposted') === 'true';
+                const repostUri = btn.getAttribute('data-reposturi');
+                const countSpan = btn.querySelector('span');
+                try {
+                    if (!reposted) {
+                        await agent.repost(uri, cid);
+                        btn.setAttribute('data-reposted', 'true');
+                        btn.classList.remove('text-gray-500', 'hover:text-green-500');
+                        btn.classList.add('text-green-500');
+                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                    } else {
+                        if (repostUri) {
+                            await agent.deleteRepost(repostUri);
+                            btn.setAttribute('data-reposted', 'false');
+                            btn.classList.remove('text-green-500');
+                            btn.classList.add('text-gray-500', 'hover:text-green-500');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
                         } else {
-                            if (likeUri) {
-                                await agent.deleteLike(likeUri);
-                                btn.setAttribute('data-liked', 'false');
-                                btn.classList.remove('text-blue-500');
-                                btn.classList.add('text-gray-500', 'hover:text-blue-500');
-                                btn.querySelector('i').classList.remove('fas');
-                                btn.querySelector('i').classList.add('far');
-                                countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                            } else {
-                                alert('Could not find like record URI to unlike.');
-                            }
+                            alert('Could not find repost record URI to unrepost.');
                         }
-                    } catch (err) {
-                        alert('Failed to like/unlike post: ' + (err.message || err));
                     }
-                };
-            });
-            document.querySelectorAll('.repost-post-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    const uri = btn.getAttribute('data-uri');
-                    const cid = btn.getAttribute('data-cid');
-                    const reposted = btn.getAttribute('data-reposted') === 'true';
-                    const repostUri = btn.getAttribute('data-reposturi');
-                    const countSpan = btn.querySelector('span');
-                    try {
-                        if (!reposted) {
-                            await agent.repost(uri, cid);
-                            btn.setAttribute('data-reposted', 'true');
-                            btn.classList.remove('text-gray-500', 'hover:text-green-500');
-                            btn.classList.add('text-green-500');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                        } else {
-                            if (repostUri) {
-                                await agent.deleteRepost(repostUri);
-                                btn.setAttribute('data-reposted', 'false');
-                                btn.classList.remove('text-green-500');
-                                btn.classList.add('text-gray-500', 'hover:text-green-500');
-                                countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                            } else {
-                                alert('Could not find repost record URI to unrepost.');
-                            }
-                        }
-                    } catch (err) {
-                        alert('Failed to repost/unrepost post: ' + (err.message || err));
-                    }
-                };
-            });
-            document.querySelectorAll('.follow-user-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    const did = btn.getAttribute('data-did');
-                    btn.disabled = true;
-                    btn.textContent = 'Following...';
-                    try {
-                        await agent.follow(did);
-                        btn.textContent = 'Following';
-                        btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
-                        btn.classList.add('text-gray-500', 'border-gray-200');
-                    } catch (err) {
-                        btn.textContent = 'Follow';
-                        btn.disabled = false;
-                        alert('Failed to follow user: ' + (err.message || err));
-                    }
-                };
-            });
-        }, 0);
+                } catch (err) {
+                    alert('Failed to repost/unrepost post: ' + (err.message || err));
+                }
+            };
+        });
+        document.querySelectorAll('.follow-user-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const did = btn.getAttribute('data-did');
+                btn.disabled = true;
+                btn.textContent = 'Following...';
+                try {
+                    await agent.follow(did);
+                    btn.textContent = 'Following';
+                    btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
+                    btn.classList.add('text-gray-500', 'border-gray-200');
+                } catch (err) {
+                    btn.textContent = 'Follow';
+                    btn.disabled = false;
+                    alert('Failed to follow user: ' + (err.message || err));
+                }
+            };
+        });
     }, 0);
     // Close button
     document.getElementById('close-single-post').onclick = () => {
@@ -1769,283 +1273,8 @@ async function renderArtistPage(did) {
         // After rendering, initialize WaveSurfer instances
         setTimeout(() => {
             for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
-                const container = document.getElementById(audioWaveformId);
-                if (container && window.WaveSurfer) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 32; canvas.height = 48;
-                    const ctx = canvas.getContext('2d');
-                    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-                    gradient.addColorStop(0, '#656666');
-                    gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-                    gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-                    gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-                    gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-                    gradient.addColorStop(1, '#B1B1B1');
-                    const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-                    progressGradient.addColorStop(0, '#EE772F');
-                    progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-                    progressGradient.addColorStop(1, '#F6B094');
-                    const wavesurfer = window.WaveSurfer.create({
-                        container: `#${audioWaveformId}`,
-                        waveColor: gradient,
-                        progressColor: progressGradient,
-                        height: 48,
-                        barWidth: 2,
-                        responsive: true,
-                        cursorColor: '#3b82f6',
-                        backend: 'MediaElement',
-                    });
-                    wavesurfer.load(audioBlobUrl);
-                    window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
-                    const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
-                    if (playBtn) {
-                        const svg = playBtn.querySelector('.wavesurfer-play-icon');
-                        playBtn.onclick = () => {
-                            Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
-                        };
-                        wavesurfer.on('finish', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                        });
-                        wavesurfer.on('pause', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                        });
-                        wavesurfer.on('play', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                        });
-                        wavesurfer.on('click', () => {
-                          Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                // wavesurfer.pause();
-                                // svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
-                        })
-                    }
-                    // Time/duration overlays
-                    const timeEl = container.querySelector('.wavesurfer-time');
-                    const durationEl = container.querySelector('.wavesurfer-duration');
-                    const formatTime = (seconds) => {
-                        const minutes = Math.floor(seconds / 60);
-                        const secondsRemainder = Math.round(seconds) % 60;
-                        const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-                        return `${minutes}:${paddedSeconds}`;
-                    };
-                    wavesurfer.on('decode', (duration) => {
-                        if (durationEl) durationEl.textContent = formatTime(duration);
-                    });
-                    wavesurfer.on('timeupdate', (currentTime) => {
-                        if (timeEl) timeEl.textContent = formatTime(currentTime);
-                    });
-                    // Hover effect
-                    const hoverEl = container.querySelector('.wavesurfer-hover');
-                    container.addEventListener('pointermove', (e) => {
-                        if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
-                    });
-                    container.addEventListener('pointerenter', () => {
-                        if (hoverEl) hoverEl.style.opacity = 1;
-                    });
-                    container.addEventListener('pointerleave', () => {
-                        if (hoverEl) hoverEl.style.opacity = 0;
-                    });
-                }
+                initWaveSurfer(audioWaveformId, audioBlobUrl);
             }
-            // Like, repost, delete, follow, comment event listeners (reuse from feed)
-            setTimeout(() => {
-                document.querySelectorAll('.delete-post-btn').forEach(btn => {
-                    btn.onclick = async (e) => {
-                        let uri = btn.getAttribute('data-uri');
-                        if (typeof uri !== 'string') uri = String(uri);
-                        if (window.confirm('Are you sure you want to delete this post?')) {
-                            try {
-                                const uriParts = uri.replace('at://', '').split('/');
-                                const did = uriParts[0];
-                                const collection = uriParts[1];
-                                const rkey = uriParts[2];
-                                await agent.api.com.atproto.repo.deleteRecord({
-                                    repo: did,
-                                    collection,
-                                    rkey,
-                                });
-                                renderArtistPage(did);
-                            } catch (err) {
-                                alert('Failed to delete post: ' + (err.message || err));
-                            }
-                        }
-                    };
-                });
-                document.querySelectorAll('.like-post-btn').forEach(btn => {
-                    btn.onclick = async (e) => {
-                        const uri = btn.getAttribute('data-uri');
-                        const cid = btn.getAttribute('data-cid');
-                        const liked = btn.getAttribute('data-liked') === 'true';
-                        const likeUri = btn.getAttribute('data-likeuri');
-                        const countSpan = btn.querySelector('span');
-                        try {
-                            if (!liked) {
-                                await agent.like(uri, cid);
-                                btn.setAttribute('data-liked', 'true');
-                                btn.classList.remove('text-gray-500', 'hover:text-blue-500');
-                                btn.classList.add('text-blue-500');
-                                btn.querySelector('i').classList.remove('far');
-                                btn.querySelector('i').classList.add('fas');
-                                countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                            } else {
-                                if (likeUri) {
-                                    await agent.deleteLike(likeUri);
-                                    btn.setAttribute('data-liked', 'false');
-                                    btn.classList.remove('text-blue-500');
-                                    btn.classList.add('text-gray-500', 'hover:text-blue-500');
-                                    btn.querySelector('i').classList.remove('fas');
-                                    btn.querySelector('i').classList.add('far');
-                                    countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                                } else {
-                                    alert('Could not find like record URI to unlike.');
-                                }
-                            }
-                        } catch (err) {
-                            alert('Failed to like/unlike post: ' + (err.message || err));
-                        }
-                    };
-                });
-                document.querySelectorAll('.repost-post-btn').forEach(btn => {
-                    btn.onclick = async (e) => {
-                        const uri = btn.getAttribute('data-uri');
-                        const cid = btn.getAttribute('data-cid');
-                        const reposted = btn.getAttribute('data-reposted') === 'true';
-                        const repostUri = btn.getAttribute('data-reposturi');
-                        const countSpan = btn.querySelector('span');
-                        try {
-                            if (!reposted) {
-                                await agent.repost(uri, cid);
-                                btn.setAttribute('data-reposted', 'true');
-                                btn.classList.remove('text-gray-500', 'hover:text-green-500');
-                                btn.classList.add('text-green-500');
-                                countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                            } else {
-                                if (repostUri) {
-                                    await agent.deleteRepost(repostUri);
-                                    btn.setAttribute('data-reposted', 'false');
-                                    btn.classList.remove('text-green-500');
-                                    btn.classList.add('text-gray-500', 'hover:text-green-500');
-                                    countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                                } else {
-                                    alert('Could not find repost record URI to unrepost.');
-                                }
-                            }
-                        } catch (err) {
-                            alert('Failed to repost/unrepost post: ' + (err.message || err));
-                        }
-                    };
-                });
-                document.querySelectorAll('.follow-user-btn').forEach(btn => {
-                    btn.onclick = async (e) => {
-                        const did = btn.getAttribute('data-did');
-                        btn.disabled = true;
-                        btn.textContent = 'Following...';
-                        try {
-                            await agent.follow(did);
-                            btn.textContent = 'Following';
-                            btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
-                            btn.classList.add('text-gray-500', 'border-gray-200');
-                        } catch (err) {
-                            btn.textContent = 'Follow';
-                            btn.disabled = false;
-                            alert('Failed to follow user: ' + (err.message || err));
-                        }
-                    };
-                });
-                // Comments fetch and post logic (reuse from feed)
-                audioPosts.forEach((item) => {
-                    const post = item.post || item;
-                    const commentSection = document.getElementById(`comments-${post.cid}`);
-                    if (!commentSection) return;
-                    (async () => {
-                        try {
-                            const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                            const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                            if (replies.length === 0) {
-                                commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                            } else {
-                                commentSection.innerHTML = replies.map(reply => {
-                                    const author = reply.post.author;
-                                    const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                                    const name = author.displayName || author.handle || 'Unknown';
-                                    const text = reply.post.record.text || '';
-                                    return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
-                                }).join('');
-                            }
-                        } catch (err) {
-                            commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
-                        }
-                    })();
-                    const form = document.getElementById(`comment-form-${post.cid}`);
-                    const input = document.getElementById(`comment-input-${post.cid}`);
-                    if (form && input) {
-                        form.onsubmit = async (e) => {
-                            e.preventDefault();
-                            const text = input.value.trim();
-                            if (!text) return;
-                            form.querySelector('button[type="submit"]').disabled = true;
-                            try {
-                                await agent.post({
-                                    text,
-                                    reply: {
-                                        root: { cid: post.cid, uri: post.uri },
-                                        parent: { cid: post.cid, uri: post.uri }
-                                    }
-                                });
-                                input.value = '';
-                                // Re-fetch comments
-                                const commentSection = document.getElementById(`comments-${post.cid}`);
-                                if (commentSection) {
-                                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">Loading...</div>';
-                                    try {
-                                        const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                                        const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                                        if (replies.length === 0) {
-                                            commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                                        } else {
-                                            commentSection.innerHTML = replies.map(reply => {
-                                                const author = reply.post.author;
-                                                const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                                                const name = author.displayName || author.handle || 'Unknown';
-                                                const text = reply.post.record.text || '';
-                                                return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
-                                            }).join('');
-                                        }
-                                    } catch (err) {
-                                        commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
-                                    }
-                                }
-                            } catch (err) {
-                                alert('Failed to post comment: ' + (err.message || err));
-                            } finally {
-                                form.querySelector('button[type="submit"]').disabled = false;
-                            }
-                        };
-                    }
-                });
-            }, 0);
         }, 0);
     }
     container.innerHTML = headerHtml + `<div class='mx-auto'>${tracksHtml}</div>`;
@@ -2132,4 +1361,195 @@ function getCurrentPdsUrl() {
     if (agent && agent.service) return agent.service;
     // Fallback to localStorage or default
     return localStorage.getItem('bskyPds') || 'https://bsky.social';
+}
+
+// --- Utility: Filter for audio posts with correct tag and audio file ---
+function filterAudioPosts(posts) {
+    return posts.filter(item => {
+        const post = item.post || item;
+        const tags = post.record && post.record.tags;
+        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
+        const embed = post.record && post.record.embed;
+        let fileEmbed = null;
+        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
+    });
+}
+
+// --- Utility: Render a post card (returns HTML string) ---
+function renderPostCard({ post, user, audioHtml, options = {} }) {
+    const did = user.did;
+    let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
+    const displayName = user.displayName || user.handle || 'Unknown';
+    const time = formatRelativeTime(post.indexedAt);
+    const text = post.record.text || '';
+    // Like, repost, delete, follow buttons
+    let deleteBtnHtml = '';
+    if (agent.session && agent.session.did === user.did) {
+        deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}"><i class="fa-solid fa-trash-can"></i></button>`;
+    }
+    let followBtnHtml = '';
+    if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
+        followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}"><i class="fa-solid fa-plus"></i></button>`;
+    }
+    const liked = post.viewer && post.viewer.like;
+    const reposted = post.viewer && post.viewer.repost;
+    const likeCount = post.likeCount || 0;
+    const repostCount = post.repostCount || 0;
+    let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
+    let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}"><i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
+    // Comment UI IDs
+    const commentSectionId = `comments-${post.cid}`;
+    const commentFormId = `comment-form-${post.cid}`;
+    const commentInputId = `comment-input-${post.cid}`;
+    const commentSendId = `comment-send-${post.cid}`;
+    const currentUserAvatar = (agent.session && agent.session.did)
+        ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
+        : defaultAvatar;
+    return `
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
+            <div class="p-4">
+                <div class="flex items-start">
+                    <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                    <div class="ml-3 flex-1">
+                        <div class="flex items-center">
+                            <button class="artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline" data-did="${did}">${displayName}</button>
+                            <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
+                            ${deleteBtnHtml}
+                            ${followBtnHtml}
+                        </div>
+                        <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${text}</button>
+                        ${audioHtml}
+                        <div class="mt-3 flex items-center space-x-4">
+                            ${likeBtnHtml}
+                            ${repostBtnHtml}
+                        </div>
+                        <div class='mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
+                            <div class='flex items-center gap-2 mb-2'>
+                                <img src='${currentUserAvatar}' class='h-8 w-8 rounded-full' alt='Me' onerror="this.onerror=null;this.src='${defaultAvatar}';">
+                                <form id='${commentFormId}' class='flex-1 flex items-center gap-2'>
+                                    <input id='${commentInputId}' type='text' placeholder='Write a comment' class='flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none' maxlength='280' autocomplete='off' />
+                                    <button id='${commentSendId}' type='submit' class='p-2 text-blue-500 hover:text-blue-600' title='Send'>
+                                        <svg width='20' height='20' fill='none' viewBox='0 0 20 20'><path d='M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z' fill='currentColor'/></svg>
+                                    </button>
+                                </form>
+                            </div>
+                            <div id='${commentSectionId}' class='space-y-2'></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// --- Utility: Initialize WaveSurfer instance for a given waveform ID and blob URL ---
+function initWaveSurfer(audioWaveformId, audioBlobUrl) {
+    const container = document.getElementById(audioWaveformId);
+    if (container && window.WaveSurfer && audioBlobUrl) {
+        // Create canvas for gradients
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 48;
+        const ctx = canvas.getContext('2d');
+        // SoundCloud-style waveform gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+        gradient.addColorStop(0, '#656666');
+        gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
+        gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+        gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+        gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
+        gradient.addColorStop(1, '#B1B1B1');
+        // Progress gradient
+        const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+        progressGradient.addColorStop(0, '#EE772F');
+        progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
+        progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+        progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+        progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
+        progressGradient.addColorStop(1, '#F6B094');
+        // Init WaveSurfer
+        const wavesurfer = window.WaveSurfer.create({
+            container: `#${audioWaveformId}`,
+            waveColor: gradient,
+            progressColor: progressGradient,
+            height: 48,
+            barWidth: 2,
+            responsive: true,
+            cursorColor: '#3b82f6',
+            backend: 'MediaElement',
+        });
+        wavesurfer.load(audioBlobUrl);
+        // Store instance globally
+        window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
+        // Play/pause button
+        const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+        if (playBtn) {
+            const svg = playBtn.querySelector('.wavesurfer-play-icon');
+            playBtn.onclick = () => {
+                // Pause all other players before playing this one
+                Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                    if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                        ws.pause();
+                    }
+                });
+                if (wavesurfer.isPlaying()) {
+                    wavesurfer.pause();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                } else {
+                    wavesurfer.play();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                }
+            };
+            wavesurfer.on('finish', () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            });
+            wavesurfer.on('pause', () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            });
+            wavesurfer.on('play', () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+            });
+            wavesurfer.on('click', () => {
+                Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                    if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                        ws.pause();
+                    }
+                });
+                if (wavesurfer.isPlaying()) {
+                    // wavesurfer.pause();
+                } else {
+                    wavesurfer.play();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                }
+            });
+        }
+        // Time/duration overlays
+        const timeEl = container.querySelector('.wavesurfer-time');
+        const durationEl = container.querySelector('.wavesurfer-duration');
+        const formatTime = (seconds) => {
+            const minutes = Math.floor(seconds / 60);
+            const secondsRemainder = Math.round(seconds) % 60;
+            const paddedSeconds = `0${secondsRemainder}`.slice(-2);
+            return `${minutes}:${paddedSeconds}`;
+        };
+        wavesurfer.on('decode', (duration) => {
+            if (durationEl) durationEl.textContent = formatTime(duration);
+        });
+        wavesurfer.on('timeupdate', (currentTime) => {
+            if (timeEl) timeEl.textContent = formatTime(currentTime);
+        });
+        // Hover effect
+        const hoverEl = container.querySelector('.wavesurfer-hover');
+        container.addEventListener('pointermove', (e) => {
+            if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
+        });
+        container.addEventListener('pointerenter', () => {
+            if (hoverEl) hoverEl.style.opacity = 1;
+        });
+        container.addEventListener('pointerleave', () => {
+            if (hoverEl) hoverEl.style.opacity = 0;
+        });
+    }
 }
