@@ -102,7 +102,10 @@ if (topNav) {
     topNav.appendChild(uploadBtn);
 
     const logoutBtn = document.createElement('button');
-    logoutBtn.textContent = 'Logout';
+    // logoutBtn.textContent = 'Logout';
+    const iconLogout = document.createElement('i');
+    iconLogout.className = 'fas fa-sign-out-alt'; // Font Awesome class for "logout" icon
+    logoutBtn.appendChild(iconLogout);
     logoutBtn.className = 'ml-2 px-3 py-1 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-100';
     logoutBtn.onclick = () => {
         localStorage.removeItem('bskySession');
@@ -116,7 +119,10 @@ if (topNav) {
     volumeContainer.className = 'relative flex items-center';
     // Volume button
     const volumeBtn = document.createElement('button');
-    volumeBtn.innerHTML = `<svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M3 8v4h4l5 5V3L7 8H3z" fill="currentColor"/></svg>`;
+    const iconVolume = document.createElement('i');
+    iconVolume.className = 'fas fa-volume-high'; // Font Awesome class for "logout" icon
+    volumeBtn.appendChild(iconVolume);
+    // volumeBtn.innerHTML = `<svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M3 8v4h4l5 5V3L7 8H3z" fill="currentColor"/></svg>`;
     volumeBtn.className = 'ml-2 px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-100';
     // Volume slider (vertical, hidden by default)
     const volumeSlider = document.createElement('input');
@@ -360,7 +366,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         const did = user.did;
         let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
         const displayName = user.displayName || user.handle || 'Unknown';
-        const time = new Date(post.indexedAt).toLocaleString();
+        const time = formatRelativeTime(post.indexedAt);
         let audioHtml = '';
         let audioBlobUrl = null;
         let audioWaveformId = null;
@@ -409,12 +415,12 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         // Show delete button if the logged-in user is the author
         let deleteBtnHtml = '';
         if (agent.session && agent.session.did === user.did) {
-            deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
+            deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}"><i class="fa-solid fa-trash-can"></i></button>`;
         }
         // Show follow button if not following and not self
         let followBtnHtml = '';
         if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
-            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}">Follow</button>`;
+            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}"><i class="fa-solid fa-plus"></i></button>`;
         }
         // Like and repost buttons
         const liked = post.viewer && post.viewer.like;
@@ -541,6 +547,20 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 wavesurfer.on('play', () => {
                     svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                 });
+                wavesurfer.on('click', () => {
+                  Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                                    ws.pause();
+                                }
+                            });
+                            if (wavesurfer.isPlaying()) {
+                                wavesurfer.pause();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                            } else {
+                                wavesurfer.play();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                            }
+                })
             }
             // Time/duration overlays
             const timeEl = container.querySelector('.wavesurfer-time');
@@ -830,6 +850,20 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 wavesurfer.on('play', () => {
                     svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                 });
+                wavesurfer.on('click', () => {
+                  Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                                    ws.pause();
+                                }
+                            });
+                            if (wavesurfer.isPlaying()) {
+                                wavesurfer.pause();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                            } else {
+                                wavesurfer.play();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                            }
+                })
             }
             // Time/duration overlays
             const timeEl = container.querySelector('.wavesurfer-time');
@@ -1003,7 +1037,7 @@ async function renderSinglePostView(postUri) {
     const did = user.did;
     let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
     const displayName = user.displayName || user.handle || 'Unknown';
-    const time = new Date(post.indexedAt).toLocaleString();
+    const time = formatRelativeTime(post.indexedAt);
     let audioHtml = '';
     let audioBlobUrl = null;
     let audioWaveformId = `waveform-single-${post.cid}`;
@@ -1166,6 +1200,20 @@ async function renderSinglePostView(postUri) {
                 wavesurfer.on('play', () => {
                     svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                 });
+                wavesurfer.on('click', () => {
+                  Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                                    ws.pause();
+                                }
+                            });
+                            if (wavesurfer.isPlaying()) {
+                                wavesurfer.pause();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                            } else {
+                                wavesurfer.play();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                            }
+                })
             }
             const timeEl = container.querySelector('.wavesurfer-time');
             const durationEl = container.querySelector('.wavesurfer-duration');
@@ -1611,7 +1659,7 @@ async function renderArtistPage(did) {
             const did = user.did;
             let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
             const displayName = user.displayName || user.handle || 'Unknown';
-            const time = new Date(post.indexedAt).toLocaleString();
+            const time = formatRelativeTime(post.indexedAt);
             let audioHtml = '';
             let audioBlobUrl = null;
             let audioWaveformId = `waveform-artist-${post.cid}`;
@@ -1778,6 +1826,20 @@ async function renderArtistPage(did) {
                         wavesurfer.on('play', () => {
                             svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                         });
+                        wavesurfer.on('click', () => {
+                          Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                                    ws.pause();
+                                }
+                            });
+                            if (wavesurfer.isPlaying()) {
+                                wavesurfer.pause();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                            } else {
+                                wavesurfer.play();
+                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                            }
+                        })
                     }
                     // Time/duration overlays
                     const timeEl = container.querySelector('.wavesurfer-time');
@@ -2036,4 +2098,30 @@ renderSinglePostView = async function(...args) {
 function getArtistParamFromUrl() {
     const url = new URL(window.location.href);
     return url.searchParams.get('artist');
+}
+
+// Helper: format relative time
+function formatRelativeTime(dateString) {
+    const now = new Date();
+    const then = new Date(dateString);
+    const diff = Math.floor((now - then) / 1000); // seconds
+    if (diff < 60) return 'just now';
+    if (diff < 3600) {
+        const m = Math.floor(diff / 60);
+        return m === 1 ? '1 minute ago' : `${m} minutes ago`;
+    }
+    if (diff < 86400) {
+        const h = Math.floor(diff / 3600);
+        return h === 1 ? '1 hour ago' : `${h} hours ago`;
+    }
+    if (diff < 2592000) {
+        const d = Math.floor(diff / 86400);
+        return d === 1 ? '1 day ago' : `${d} days ago`;
+    }
+    if (diff < 31536000) {
+        const mo = Math.floor(diff / 2592000);
+        return mo === 1 ? '1 month ago' : `${mo} months ago`;
+    }
+    const y = Math.floor(diff / 31536000);
+    return y === 1 ? '1 year ago' : `${y} years ago`;
 }
