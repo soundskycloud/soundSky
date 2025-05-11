@@ -86,7 +86,7 @@ if (topNav) {
     // Upload button
     const uploadBtn = document.createElement('button');
     uploadBtn.textContent = 'Upload';
-    uploadBtn.className = 'ml-2 px-3 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50';
+    uploadBtn.className = 'ml-2 px-3 py-1 text-xs text-blue-600 rounded hover:bg-blue-50';
     uploadBtn.onclick = () => {
         const uploadForm = document.getElementById('create-audio-post');
         // Only toggle if not in single post mode
@@ -106,7 +106,7 @@ if (topNav) {
     const iconLogout = document.createElement('i');
     iconLogout.className = 'fas fa-sign-out-alt'; // Font Awesome class for "logout" icon
     logoutBtn.appendChild(iconLogout);
-    logoutBtn.className = 'ml-2 px-3 py-1 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-100';
+    logoutBtn.className = 'ml-2 px-3 py-1 text-xs text-gray-600 rounded hover:bg-gray-100';
     logoutBtn.onclick = () => {
         localStorage.removeItem('bskySession');
         window.location.reload();
@@ -123,7 +123,7 @@ if (topNav) {
     iconVolume.className = 'fas fa-volume-high'; // Font Awesome class for "logout" icon
     volumeBtn.appendChild(iconVolume);
     // volumeBtn.innerHTML = `<svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M3 8v4h4l5 5V3L7 8H3z" fill="currentColor"/></svg>`;
-    volumeBtn.className = 'ml-2 px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-100';
+    volumeBtn.className = 'ml-2 px-2 py-1 text-xs text-gray-600 rounded hover:bg-gray-100';
     // Volume slider (vertical, hidden by default)
     const volumeSlider = document.createElement('input');
     volumeSlider.type = 'range';
@@ -554,7 +554,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                                 }
                             });
                             if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
+                                // wavesurfer.pause();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                             } else {
                                 wavesurfer.play();
@@ -857,7 +857,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                                 }
                             });
                             if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
+                                // wavesurfer.pause();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                             } else {
                                 wavesurfer.play();
@@ -1207,7 +1207,7 @@ async function renderSinglePostView(postUri) {
                                 }
                             });
                             if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
+                                // wavesurfer.pause();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                             } else {
                                 wavesurfer.play();
@@ -1833,7 +1833,7 @@ async function renderArtistPage(did) {
                                 }
                             });
                             if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
+                                // wavesurfer.pause();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                             } else {
                                 wavesurfer.play();
@@ -2124,4 +2124,12 @@ function formatRelativeTime(dateString) {
     }
     const y = Math.floor(diff / 31536000);
     return y === 1 ? '1 year ago' : `${y} years ago`;
+}
+
+// Helper to get the current PDS base URL
+function getCurrentPdsUrl() {
+    // Try to get from agent if possible
+    if (agent && agent.service) return agent.service;
+    // Fallback to localStorage or default
+    return localStorage.getItem('bskyPds') || 'https://bsky.social';
 }
