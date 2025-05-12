@@ -1,4 +1,6 @@
-<img src="https://github.com/user-attachments/assets/c32acf81-8f14-48a8-a91f-a3eb5c7c4003" width="100%" >
+<a href="https://soundsky.cloud">
+  <img src="https://github.com/user-attachments/assets/c32acf81-8f14-48a8-a91f-a3eb5c7c4003" width="100%" >
+</a>
 
 ## SoundSky ☁️
 > ATProto/bsky based Soundcloud Alternative for Indie Music Makers 
@@ -19,8 +21,8 @@
 
 
 ## Live Demo
-<a href="https://soundsky.glitch.me">
-<img src="https://github.com/user-attachments/assets/5883bb43-d087-45ad-8a31-87e6ef0162b4" width="100%" >
+<a href="https://soundsky.cloud">
+  <img src="https://github.com/user-attachments/assets/5883bb43-d087-45ad-8a31-87e6ef0162b4" width="100%" >
 </a>
 
 
