@@ -1583,27 +1583,95 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
 
 // --- Add event delegation for delete button (fixes icon click issues) ---
 feedContainer.addEventListener('click', async function(e) {
+    // Delete button
     const btn = e.target.closest('.delete-post-btn');
     if (btn && btn.getAttribute('data-uri')) {
-                        let uri = btn.getAttribute('data-uri');
-                        if (typeof uri !== 'string') uri = String(uri);
-                        if (window.confirm('Are you sure you want to delete this post?')) {
-                            try {
-                                const uriParts = uri.replace('at://', '').split('/');
-                                const did = uriParts[0];
-                                const collection = uriParts[1];
-                                const rkey = uriParts[2];
-                                await agent.api.com.atproto.repo.deleteRecord({
-                                    repo: did,
-                                    collection,
-                                    rkey,
-                                });
+        let uri = btn.getAttribute('data-uri');
+        if (typeof uri !== 'string') uri = String(uri);
+        if (window.confirm('Are you sure you want to delete this post?')) {
+            try {
+                const uriParts = uri.replace('at://', '').split('/');
+                const did = uriParts[0];
+                const collection = uriParts[1];
+                const rkey = uriParts[2];
+                await agent.api.com.atproto.repo.deleteRecord({
+                    repo: did,
+                    collection,
+                    rkey,
+                });
                 clearAllParamsInUrl();
                 fetchSoundskyFeed();
-                            } catch (err) {
-                                alert('Failed to delete post: ' + (err.message || err));
-                            }
-                        }
+            } catch (err) {
+                alert('Failed to delete post: ' + (err.message || err));
+            }
+        }
+        return;
+    }
+    // Like button
+    const likeBtn = e.target.closest('.like-post-btn');
+    if (likeBtn && likeBtn.getAttribute('data-uri')) {
+        const uri = likeBtn.getAttribute('data-uri');
+        const cid = likeBtn.getAttribute('data-cid');
+        const liked = likeBtn.getAttribute('data-liked') === 'true';
+        const likeUri = likeBtn.getAttribute('data-likeuri');
+        const countSpan = likeBtn.querySelector('span');
+        try {
+            if (!liked) {
+                await agent.like(uri, cid);
+                likeBtn.setAttribute('data-liked', 'true');
+                likeBtn.classList.remove('text-gray-500', 'hover:text-blue-500');
+                likeBtn.classList.add('text-blue-500');
+                likeBtn.querySelector('i').classList.remove('far');
+                likeBtn.querySelector('i').classList.add('fas');
+                countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+            } else {
+                if (likeUri) {
+                    await agent.deleteLike(likeUri);
+                    likeBtn.setAttribute('data-liked', 'false');
+                    likeBtn.classList.remove('text-blue-500');
+                    likeBtn.classList.add('text-gray-500', 'hover:text-blue-500');
+                    likeBtn.querySelector('i').classList.remove('fas');
+                    likeBtn.querySelector('i').classList.add('far');
+                    countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                } else {
+                    alert('Could not find like record URI to unlike.');
+                }
+            }
+        } catch (err) {
+            alert('Failed to like/unlike post: ' + (err.message || err));
+        }
+        return;
+    }
+    // Repost button
+    const repostBtn = e.target.closest('.repost-post-btn');
+    if (repostBtn && repostBtn.getAttribute('data-uri')) {
+        const uri = repostBtn.getAttribute('data-uri');
+        const cid = repostBtn.getAttribute('data-cid');
+        const reposted = repostBtn.getAttribute('data-reposted') === 'true';
+        const repostUri = repostBtn.getAttribute('data-reposturi');
+        const countSpan = repostBtn.querySelector('span');
+        try {
+            if (!reposted) {
+                await agent.repost(uri, cid);
+                repostBtn.setAttribute('data-reposted', 'true');
+                repostBtn.classList.remove('text-gray-500', 'hover:text-green-500');
+                repostBtn.classList.add('text-green-500');
+                countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+            } else {
+                if (repostUri) {
+                    await agent.deleteRepost(repostUri);
+                    repostBtn.setAttribute('data-reposted', 'false');
+                    repostBtn.classList.remove('text-green-500');
+                    repostBtn.classList.add('text-gray-500', 'hover:text-green-500');
+                    countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                } else {
+                    alert('Could not find repost record URI to unrepost.');
+                }
+            }
+        } catch (err) {
+            alert('Failed to repost/unrepost post: ' + (err.message || err));
+        }
+        return;
     }
 });
 
@@ -1647,8 +1715,6 @@ if (searchInput) {
 
 // Update follow button event delegation for follow/unfollow toggle
 feedContainer.addEventListener('click', async function(e) {
-    // ... existing delete button logic ...
-    // ... existing like/repost logic ...
     // Follow/unfollow logic
     const followBtn = e.target.closest('.follow-user-btn');
     if (followBtn && followBtn.getAttribute('data-did')) {
