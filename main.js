@@ -400,13 +400,55 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
     addSinglePostClickHandlers();
 }
 
-const createAudioPost = document.getElementById('create-audio-post');
+// Only declare audioPostForm once at the top
 const audioPostForm = document.getElementById('audio-post-form');
 const audioFileInput = document.getElementById('audio-file');
 if (audioFileInput) audioFileInput.setAttribute('accept', '.mp3,audio/mpeg');
 const audioCaptionInput = document.getElementById('audio-caption');
 const audioPostBtn = document.getElementById('audio-post-btn');
 const audioPostStatus = document.getElementById('audio-post-status');
+
+// Add an optional image file input to the audio post form (styled like the MP3 upload)
+if (audioPostForm && !document.getElementById('artwork-file')) {
+    // Find the audio file input and its custom label/button
+    const audioFileInput = document.getElementById('audio-file');
+    const audioFileLabel = audioFileInput && audioFileInput.labels && audioFileInput.labels[0];
+    // Create artwork input (hidden)
+    const artworkInput = document.createElement('input');
+    artworkInput.type = 'file';
+    artworkInput.id = 'artwork-file';
+    artworkInput.name = 'artwork';
+    artworkInput.accept = '.png,.jpg,.jpeg,.gif,image/png,image/jpeg,image/gif';
+    artworkInput.className = 'hidden';
+    // Create custom label/button for artwork
+    const artworkLabel = document.createElement('label');
+    artworkLabel.htmlFor = 'artwork-file';
+    artworkLabel.className = audioFileLabel ? audioFileLabel.className : 'cursor-pointer px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100';
+    artworkLabel.style.marginLeft = '0.5rem';
+    artworkLabel.innerHTML = '<i class="fa fa-image mr-1"></i>Choose Artwork...';
+    // File name display
+    const artworkFileName = document.createElement('span');
+    artworkFileName.id = 'artwork-file-name';
+    artworkFileName.className = 'ml-2 text-sm text-gray-300';
+    artworkFileName.textContent = ''; // 'No file chosen'
+    // Insert artwork input, label, and file name after the audio file input/label
+    if (audioFileInput && audioFileInput.parentNode) {
+        // Find the next sibling after the audio file input (could be the label or something else)
+        let insertAfter = audioFileInput;
+        if (audioFileLabel && audioFileLabel.nextSibling) {
+            insertAfter = audioFileLabel;
+        }
+        insertAfter.parentNode.insertBefore(artworkInput, insertAfter.nextSibling);
+        insertAfter.parentNode.insertBefore(artworkLabel, artworkInput.nextSibling);
+        insertAfter.parentNode.insertBefore(artworkFileName, artworkLabel.nextSibling);
+    }
+    // JS: update file name on change
+    /*
+    artworkInput.addEventListener('change', () => {
+        artworkFileName.textContent = artworkInput.files[0]?.name || 'No file chosen';
+    });
+    */
+}
 
 // Handle audio post form submit
 if (audioPostForm) {
@@ -417,25 +459,70 @@ if (audioPostForm) {
         audioPostBtn.textContent = 'Uploading...';
         try {
             const file = audioFileInput.files[0];
-            if (!file) throw new Error('Please select an audio file.');
-            if (file.type !== 'audio/mpeg' && !file.name.endsWith('.mp3')) {
-                throw new Error('Only MP3 files are supported.');
+            const artworkInput = document.getElementById('artwork-file');
+            const artworkFile = artworkInput && artworkInput.files && artworkInput.files[0] ? artworkInput.files[0] : null;
+
+            let embed = null;
+            let text = audioCaptionInput.value || '';
+            let facets = [];
+
+            // If artwork is present, upload to Imgur and get the URL
+            let artworkUrl = null;
+            if (artworkFile) {
+                // Only allow image types
+                if (!['image/png', 'image/jpeg', 'image/gif'].includes(artworkFile.type)) {
+                    throw new Error('Artwork must be PNG, JPG, or GIF.');
+                }
+                // Upload to Imgur using FormData (binary)
+                const formData = new FormData();
+                formData.append('image', artworkFile);
+                const imgurRes = await fetch('https://api.imgur.com/3/image', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Client-ID f0ec4a3ff4491b6',
+                        // Do NOT set Content-Type here!
+                    },
+                    body: formData,
+                });
+                const imgurData = await imgurRes.json();
+                if (!imgurData.success || !imgurData.data || !imgurData.data.link) {
+                    throw new Error('Failed to upload artwork to Imgur.');
+                }
+                artworkUrl = imgurData.data.link;
+                // Add the image URL to the post text (on a new line)
+                text = text ? (text + '\n' + artworkUrl) : artworkUrl;
+                // Add a richtext facet for the image URL
+                facets.push({
+                    index: {
+                        byteStart: text.lastIndexOf(artworkUrl),
+                        byteEnd: text.lastIndexOf(artworkUrl) + artworkUrl.length,
+                    },
+                    features: [
+                        {
+                            $type: 'app.bsky.richtext.facet#link',
+                            uri: artworkUrl,
+                        },
+                    ],
+                });
             }
-            console.log('Uploading file:', file.name, 'type:', file.type, 'size:', file.size);
-            // Upload blob
-            const blobRes = await agent.uploadBlob(file, file.type);
-            const blob = blobRes.data.blob;
-            console.log('Blob uploaded:', blob);
-            // Create post with #soundskyaudio tag
-            const caption = audioCaptionInput.value || '';
-            const text = caption;
-            const embed = {
-                $type: 'app.bsky.embed.file',
-                file: blob,
-                mimeType: file.type,
-            };
-            const postRes = await agent.post({ text, embed, tags: ['soundskyaudio'] });
-            console.log('Post created:', postRes);
+
+            if (file) {
+                // Audio upload (primary, as before)
+                if (file.type !== 'audio/mpeg' && !file.name.endsWith('.mp3')) {
+                    throw new Error('Only MP3 files are supported.');
+                }
+                const blobRes = await agent.uploadBlob(file, file.type);
+                const audioBlob = blobRes.data.blob;
+                embed = {
+                    $type: 'app.bsky.embed.file',
+                    file: audioBlob,
+                    mimeType: file.type,
+                };
+            } else if (!artworkUrl) {
+                throw new Error('Please select an audio file or artwork image.');
+            }
+
+            const postRes = await agent.post({ text, embed, tags: ['soundskyaudio'], facets: facets.length ? facets : undefined });
             audioPostStatus.textContent = 'Posted!';
             audioPostForm.reset();
             const uploadForm = document.getElementById('create-audio-post');
@@ -629,8 +716,10 @@ async function renderSinglePostView(postUri) {
                         const author = reply.post.author;
                         const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
                         const name = author.displayName || author.handle || 'Unknown';
-                        const text = reply.post.record.text || '';
-                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${text}</p></div></div>`;
+                        const commentText = reply.post.record.text || '';
+                        const isOwnComment = agent.session && agent.session.did === author.did;
+                        const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
+                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div>${deleteBtn}</div>`;
                     }).join('');
                 }
             } catch (err) {
@@ -639,157 +728,118 @@ async function renderSinglePostView(postUri) {
         })();
         const form = document.getElementById(`comment-form-${post.cid}`);
         const input = document.getElementById(`comment-input-${post.cid}`);
-        if (form && input) {
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const text = input.value.trim();
-                if (!text) return;
-                form.querySelector('button[type="submit"]').disabled = true;
+        // Remove the inline onsubmit handler; rely on delegated handler
+        // if (form && input) {
+        //     form.onsubmit = async (e) => { ... }
+        // }
+    // Like, repost, delete, follow, etc. event listeners (reuse from feed)
+    setTimeout(() => {
+        document.querySelectorAll('.delete-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                let uri = btn.getAttribute('data-uri');
+                if (typeof uri !== 'string') uri = String(uri);
+                if (window.confirm('Are you sure you want to delete this post?')) {
+                    try {
+                        const uriParts = uri.replace('at://', '').split('/');
+                        const did = uriParts[0];
+                        const collection = uriParts[1];
+                        const rkey = uriParts[2];
+                        await agent.api.com.atproto.repo.deleteRecord({
+                            repo: did,
+                            collection,
+                            rkey,
+                        });
+                        clearAllParamsInUrl();
+                        fetchSoundskyFeed();
+                    } catch (err) {
+                        alert('Failed to delete post: ' + (err.message || err));
+                    }
+                }
+            };
+        });
+        document.querySelectorAll('.like-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const uri = btn.getAttribute('data-uri');
+                const cid = btn.getAttribute('data-cid');
+                const liked = btn.getAttribute('data-liked') === 'true';
+                const likeUri = btn.getAttribute('data-likeuri');
+                const countSpan = btn.querySelector('span');
                 try {
-                // Post reply
-                    await agent.post({
-                        text,
-                        reply: {
-                            root: { cid: post.cid, uri: post.uri },
-                            parent: { cid: post.cid, uri: post.uri }
-                        }
-                    });
-                    input.value = '';
-                // Re-fetch comments
-                    const commentSection = document.getElementById(`comments-${post.cid}`);
-                    if (commentSection) {
-                    commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">Loading Library...</div>';
-                        try {
-                            const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                            const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                            if (replies.length === 0) {
-                            commentSection.innerHTML = '<div class=\"text-gray-400 text-xs\">No comments yet.</div>';
-                            } else {
-                                commentSection.innerHTML = replies.map(reply => {
-                                    const author = reply.post.author;
-                                    const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                                    const name = author.displayName || author.handle || 'Unknown';
-                                    const text = reply.post.record.text || '';
-                                return `<div class=\\\"flex items-start gap-2\\\"><img src=\\\"${avatar}\\\" class=\\\"h-7 w-7 rounded-full\\\" alt=\\\"${name}\\\" onerror=\\\"this.onerror=null;this.src='${defaultAvatar}';\\\"><div><span class=\\\"font-medium text-xs text-gray-900 dark:text-gray-100\\\">${name}</span><p class=\\\"text-xs text-gray-700 dark:text-gray-200\\\">${text}</p></div></div>`;
-                                }).join('');
-                            }
-                        } catch (err) {
-                            commentSection.innerHTML = '<div class=\\\"text-red-400 text-xs\\\">Failed to load comments.</div>';
+                    if (!liked) {
+                        const likeRes = await agent.like(uri, cid);
+                        btn.setAttribute('data-liked', 'true');
+                        btn.setAttribute('data-likeuri', likeRes && likeRes.uri ? likeRes.uri : '');
+                        btn.classList.remove('text-gray-500', 'hover:text-blue-500');
+                        btn.classList.add('text-blue-500');
+                        btn.querySelector('i').classList.remove('far');
+                        btn.querySelector('i').classList.add('fas');
+                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                    } else {
+                        if (likeUri) {
+                            await agent.deleteLike(likeUri);
+                            btn.setAttribute('data-liked', 'false');
+                            btn.setAttribute('data-likeuri', '');
+                            btn.classList.remove('text-blue-500');
+                            btn.classList.add('text-gray-500', 'hover:text-blue-500');
+                            btn.querySelector('i').classList.remove('fas');
+                            btn.querySelector('i').classList.add('far');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                        } else {
+                            alert('Could not find like record URI to unlike.');
                         }
                     }
                 } catch (err) {
-                    alert('Failed to post comment: ' + (err.message || err));
-                } finally {
-                    form.querySelector('button[type="submit"]').disabled = false;
+                    alert('Failed to like/unlike post: ' + (err.message || err));
                 }
             };
-        }
-        // Like, repost, delete, follow, etc. event listeners (reuse from feed)
-        setTimeout(() => {
-            document.querySelectorAll('.delete-post-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    let uri = btn.getAttribute('data-uri');
-                    if (typeof uri !== 'string') uri = String(uri);
-                    if (window.confirm('Are you sure you want to delete this post?')) {
-                        try {
-                            const uriParts = uri.replace('at://', '').split('/');
-                            const did = uriParts[0];
-                            const collection = uriParts[1];
-                            const rkey = uriParts[2];
-                            await agent.api.com.atproto.repo.deleteRecord({
-                                repo: did,
-                                collection,
-                                rkey,
-                            });
-                            clearAllParamsInUrl();
-                            fetchSoundskyFeed();
-                        } catch (err) {
-                            alert('Failed to delete post: ' + (err.message || err));
-                        }
-                    }
-                };
-            });
-            document.querySelectorAll('.like-post-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    const uri = btn.getAttribute('data-uri');
-                    const cid = btn.getAttribute('data-cid');
-                    const liked = btn.getAttribute('data-liked') === 'true';
-                    const likeUri = btn.getAttribute('data-likeuri');
-                    const countSpan = btn.querySelector('span');
-                    try {
-                        if (!liked) {
-                            await agent.like(uri, cid);
-                            btn.setAttribute('data-liked', 'true');
-                            btn.classList.remove('text-gray-500', 'hover:text-blue-500');
-                            btn.classList.add('text-blue-500');
-                            btn.querySelector('i').classList.remove('far');
-                            btn.querySelector('i').classList.add('fas');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+        });
+        document.querySelectorAll('.repost-post-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const uri = btn.getAttribute('data-uri');
+                const cid = btn.getAttribute('data-cid');
+                const reposted = btn.getAttribute('data-reposted') === 'true';
+                const repostUri = btn.getAttribute('data-reposturi');
+                const countSpan = btn.querySelector('span');
+                try {
+                    if (!reposted) {
+                        await agent.repost(uri, cid);
+                        btn.setAttribute('data-reposted', 'true');
+                        btn.classList.remove('text-gray-500', 'hover:text-green-500');
+                        btn.classList.add('text-green-500');
+                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                    } else {
+                        if (repostUri) {
+                            await agent.deleteRepost(repostUri);
+                            btn.setAttribute('data-reposted', 'false');
+                            btn.classList.remove('text-green-500');
+                            btn.classList.add('text-gray-500', 'hover:text-green-500');
+                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
                         } else {
-                            if (likeUri) {
-                                await agent.deleteLike(likeUri);
-                                btn.setAttribute('data-liked', 'false');
-                                btn.classList.remove('text-blue-500');
-                                btn.classList.add('text-gray-500', 'hover:text-blue-500');
-                                btn.querySelector('i').classList.remove('fas');
-                                btn.querySelector('i').classList.add('far');
-                                countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                            } else {
-                                alert('Could not find like record URI to unlike.');
-                            }
+                            alert('Could not find repost record URI to unrepost.');
                         }
-                    } catch (err) {
-                        alert('Failed to like/unlike post: ' + (err.message || err));
                     }
-                };
-            });
-            document.querySelectorAll('.repost-post-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    const uri = btn.getAttribute('data-uri');
-                    const cid = btn.getAttribute('data-cid');
-                    const reposted = btn.getAttribute('data-reposted') === 'true';
-                    const repostUri = btn.getAttribute('data-reposturi');
-                    const countSpan = btn.querySelector('span');
-                    try {
-                        if (!reposted) {
-                            await agent.repost(uri, cid);
-                            btn.setAttribute('data-reposted', 'true');
-                            btn.classList.remove('text-gray-500', 'hover:text-green-500');
-                            btn.classList.add('text-green-500');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                        } else {
-                            if (repostUri) {
-                                await agent.deleteRepost(repostUri);
-                                btn.setAttribute('data-reposted', 'false');
-                                btn.classList.remove('text-green-500');
-                                btn.classList.add('text-gray-500', 'hover:text-green-500');
-                                countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                            } else {
-                                alert('Could not find repost record URI to unrepost.');
-                            }
-                        }
-                    } catch (err) {
-                        alert('Failed to repost/unrepost post: ' + (err.message || err));
-                    }
-                };
-            });
-            document.querySelectorAll('.follow-user-btn').forEach(btn => {
-                btn.onclick = async (e) => {
-                    const did = btn.getAttribute('data-did');
-                    btn.disabled = true;
-                    btn.textContent = 'Following...';
-                    try {
-                        await agent.follow(did);
-                        btn.textContent = 'Following';
-                        btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
-                        btn.classList.add('text-gray-500', 'border-gray-200');
-                    } catch (err) {
-                        btn.textContent = 'Follow';
-                        btn.disabled = false;
-                        alert('Failed to follow user: ' + (err.message || err));
-                    }
-                };
-            });
+                } catch (err) {
+                    alert('Failed to repost/unrepost post: ' + (err.message || err));
+                }
+            };
+        });
+        document.querySelectorAll('.follow-user-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                const did = btn.getAttribute('data-did');
+                btn.disabled = true;
+                btn.textContent = 'Following...';
+                try {
+                    await agent.follow(did);
+                    btn.textContent = 'Following';
+                    btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
+                    btn.classList.add('text-gray-500', 'border-gray-200');
+                } catch (err) {
+                    btn.textContent = 'Follow';
+                    btn.disabled = false;
+                    alert('Failed to follow user: ' + (err.message || err));
+                }
+            };
+        });
     }, 0);
     // Close button
     document.getElementById('close-single-post').onclick = () => {
@@ -847,6 +897,14 @@ window.addEventListener('popstate', () => {
     }
 });
 
+/*
+// After rendering feed, add click handlers
+const origRenderFeed = renderFeed;
+renderFeed = async function(...args) {
+    await origRenderFeed.apply(this, args);
+    addSinglePostClickHandlers();
+};
+*/
 
 // Add style for .post-title-link if not present
 if (!document.getElementById('post-title-link-style')) {
@@ -1194,6 +1252,69 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     const currentUserAvatar = (agent.session && agent.session.did)
         ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
         : defaultAvatar;
+
+    // --- Artwork image logic ---
+    let artworkHtml = '';
+    let embed = post.record && post.record.embed;
+    let images = [];
+    // Debug: log the post object when scanning for images
+    console.log('DEBUG: renderPostCard post object:', post);
+    // Check for recordWithMedia (audio+image)
+    if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+        images = embed.media.images;
+    } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+        images = embed.images;
+    }
+    // New: Check for image links in post text facets
+    const facets = post.record && post.record.facets;
+    if (facets && Array.isArray(facets)) {
+        for (const facet of facets) {
+            if (facet.features && Array.isArray(facet.features)) {
+                for (const feature of facet.features) {
+                    if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
+                        // Only show if it's a direct image link
+                        if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
+                            artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (images.length > 0) {
+        // Only show the first image for now
+        const img = images[0];
+        // Get blob URL for image
+        let imgUrl = '';
+        if (img.image && img.image.ref) {
+            // Use the same blob fetch logic as audio
+            const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+            const userDid = user.did;
+            // Synchronous HTML, so we use the bsky blob endpoint directly
+            imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+        }
+        artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+    }
+
+    // Remove image links from displayed post text
+    let displayText = text;
+    if (facets && Array.isArray(facets)) {
+        for (const facet of facets) {
+            if (facet.features && Array.isArray(facet.features)) {
+                for (const feature of facet.features) {
+                    if (
+                        feature.$type === 'app.bsky.richtext.facet#link' &&
+                        feature.uri &&
+                        feature.uri.match(/\.(png|jpe?g|gif)$/i)
+                    ) {
+                        // Remove the image URL from the text
+                        displayText = displayText.replace(feature.uri, '').replace(/\n{2,}/g, '\n').trim();
+                    }
+                }
+            }
+        }
+    }
+
     return `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
             <div class="p-4">
@@ -1207,7 +1328,8 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                             ${deleteBtnHtml}
                             ${followBtnHtml}
                         </div>
-                        <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${text}</button>
+                        <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${displayText}</button>
+                        ${artworkHtml}
                         ${audioHtml}
                         <div class="mt-3 flex items-center space-x-4">
                             ${likeBtnHtml}
@@ -1465,8 +1587,6 @@ if (searchInput) {
 
 // Update follow button event delegation for follow/unfollow toggle
 feedContainer.addEventListener('click', async function(e) {
-    // ... existing delete button logic ...
-    // ... existing like/repost logic ...
     // Follow/unfollow logic
     const followBtn = e.target.closest('.follow-user-btn');
     if (followBtn && followBtn.getAttribute('data-did')) {
@@ -1500,5 +1620,78 @@ feedContainer.addEventListener('click', async function(e) {
         } finally {
             followBtn.disabled = false;
         }
+    }
+});
+
+// Add event delegation for comment form submission (restores comment functionality)
+feedContainer.addEventListener('submit', async function(e) {
+    const form = e.target.closest('form[id^="comment-form-"]');
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector('input[type="text"]');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    const postCard = form.closest('.post-card');
+    const postUri = postCard?.getAttribute('data-post-uri');
+    const postCid = postCard?.querySelector('.like-post-btn')?.getAttribute('data-cid');
+    if (!postUri || !postCid) return;
+    form.querySelector('button[type="submit"]').disabled = true;
+    try {
+        await agent.post({
+            text,
+            reply: {
+                root: { cid: postCid, uri: postUri },
+                parent: { cid: postCid, uri: postUri }
+            }
+        });
+        input.value = '';
+        // Optimistically append the new comment under the form
+        const commentSection = document.getElementById(`comments-${postCid}`);
+        if (commentSection) {
+            const currentUser = agent.session && agent.session.did ? {
+                avatar: document.getElementById('current-user-avatar')?.src || defaultAvatar,
+                displayName: 'Me',
+            } : {
+                avatar: defaultAvatar,
+                displayName: 'Me',
+            };
+            const commentHtml = `<div class="flex items-start gap-2"><img src="${currentUser.avatar}" class="h-7 w-7 rounded-full" alt="${currentUser.displayName}" onerror="this.onerror=null;this.src='${defaultAvatar}';"><div><span class="font-medium text-xs text-gray-900 dark:text-gray-100">${currentUser.displayName}</span><p class="text-xs text-gray-700 dark:text-gray-200">${text}</p></div></div>`;
+            commentSection.innerHTML += commentHtml;
+        }
+        // Optionally, re-fetch comments for this post
+        // (You may want to call a function to update the comment section)
+    } catch (err) {
+        alert('Failed to post comment: ' + (err.message || err));
+    } finally {
+        form.querySelector('button[type="submit"]').disabled = false;
+    }
+});
+
+// Add delegated event handler for .delete-comment-btn
+feedContainer.addEventListener('click', async function(e) {
+    const btn = e.target.closest('.delete-comment-btn');
+    if (btn && btn.getAttribute('data-uri')) {
+        let uri = btn.getAttribute('data-uri');
+        if (typeof uri !== 'string') uri = String(uri);
+        if (window.confirm('Are you sure you want to delete this comment?')) {
+            try {
+                const uriParts = uri.replace('at://', '').split('/');
+                const did = uriParts[0];
+                const collection = uriParts[1];
+                const rkey = uriParts[2];
+                await agent.api.com.atproto.repo.deleteRecord({
+                    repo: did,
+                    collection,
+                    rkey,
+                });
+                // Remove the comment from the DOM
+                const commentDiv = btn.closest('.flex.items-start.gap-2');
+                if (commentDiv) commentDiv.remove();
+            } catch (err) {
+                alert('Failed to delete comment: ' + (err.message || err));
+            }
+        }
+        return;
     }
 });
