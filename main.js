@@ -424,8 +424,13 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         }
         // Show follow button if not following and not self
         let followBtnHtml = '';
-        if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
-            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}"><i class="fa-solid fa-plus"></i></button>`;
+        if (agent.session && agent.session.did !== user.did) {
+            const isFollowing = user.viewer && user.viewer.following;
+            if (isFollowing) {
+                followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
+            } else {
+                followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
+            }
         }
         // Like and repost buttons
         const liked = post.viewer && post.viewer.like;
@@ -687,8 +692,13 @@ async function renderSinglePostView(postUri) {
         deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
     }
     let followBtnHtml = '';
-    if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
-        followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}">Follow</button>`;
+    if (agent.session && agent.session.did !== user.did) {
+        const isFollowing = user.viewer && user.viewer.following;
+        if (isFollowing) {
+            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
+        } else {
+            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
+        }
     }
     const liked = post.viewer && post.viewer.like;
     const reposted = post.viewer && post.viewer.repost;
@@ -1219,8 +1229,13 @@ async function renderArtistPage(did) {
                 deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
             }
             let followBtnHtml = '';
-            if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
-                followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}">Follow</button>`;
+            if (agent.session && agent.session.did !== user.did) {
+                const isFollowing = user.viewer && user.viewer.following;
+                if (isFollowing) {
+                    followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
+                } else {
+                    followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
+                }
             }
             const liked = post.viewer && post.viewer.like;
             const reposted = post.viewer && post.viewer.repost;
@@ -1397,8 +1412,13 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
         deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}"><i class="fa-solid fa-trash-can"></i></button>`;
     }
     let followBtnHtml = '';
-    if (agent.session && agent.session.did !== user.did && (!user.viewer || !user.viewer.following)) {
-        followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}"><i class="fa-solid fa-plus"></i></button>`;
+    if (agent.session && agent.session.did !== user.did) {
+        const isFollowing = user.viewer && user.viewer.following;
+        if (isFollowing) {
+            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
+        } else {
+            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
+        }
     }
     const liked = post.viewer && post.viewer.like;
     const reposted = post.viewer && post.viewer.repost;
@@ -1624,3 +1644,43 @@ if (searchInput) {
         }
     });
 }
+
+// Update follow button event delegation for follow/unfollow toggle
+feedContainer.addEventListener('click', async function(e) {
+    // ... existing delete button logic ...
+    // ... existing like/repost logic ...
+    // Follow/unfollow logic
+    const followBtn = e.target.closest('.follow-user-btn');
+    if (followBtn && followBtn.getAttribute('data-did')) {
+        const did = followBtn.getAttribute('data-did');
+        const isFollowing = followBtn.getAttribute('data-following') === 'true';
+        followBtn.disabled = true;
+        let originalText = followBtn.textContent;
+        followBtn.textContent = isFollowing ? 'Unfollowing...' : 'Following...';
+        try {
+            if (!isFollowing) {
+                await agent.follow(did);
+                followBtn.textContent = 'Following';
+                followBtn.setAttribute('data-following', 'true');
+                followBtn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
+                followBtn.classList.add('text-gray-500', 'border-gray-200');
+            } else {
+                // Unfollow: find the follow record URI if available
+                if (agent.unfollow) {
+                    await agent.unfollow(did);
+                } else if (agent.api && agent.api.app && agent.api.app.bsky && agent.api.app.bsky.graph && agent.api.app.bsky.graph.unfollow) {
+                    await agent.api.app.bsky.graph.unfollow({ actor: agent.session.did, subject: did });
+                }
+                followBtn.textContent = 'Follow';
+                followBtn.setAttribute('data-following', 'false');
+                followBtn.classList.remove('text-gray-500', 'border-gray-200');
+                followBtn.classList.add('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
+            }
+        } catch (err) {
+            followBtn.textContent = originalText;
+            alert('Failed to update follow state: ' + (err.message || err));
+        } finally {
+            followBtn.disabled = false;
+        }
+    }
+});
