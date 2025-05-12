@@ -10,6 +10,7 @@
     <meta property="og:type" content="object" />
     <meta property="og:image" content="https://repository-images.githubusercontent.com/980873116/d7275000-f5d1-4caf-8cd6-f12fb8567272" />
     <meta property="og:logo" content="https://soundsky.cloud/favicon.ico" />
+    <meta property="og:site_name" content="SoundSky.cloud" />
     <title>SoundSky: ATProto Audio Social Network</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -161,13 +162,13 @@
                 </div>
                 <div class="flex flex-col flex-grow p-4 overflow-y-auto">
                     <nav class="flex-1 space-y-2">
-                        <a href="#" id="nav-feed" class="flex items-center px-4 py-3 text-sm font-medium text-white bg-blue-500 rounded-lg">
-                            <i class="fas fa-home mr-3"></i>
-                            Feed
-                        </a>
                         <a href="#" id="nav-discover" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
                             <i class="fas fa-compass mr-3"></i>
                             Discover
+                        </a>
+                        <a href="#" id="nav-feed" class="flex items-center px-4 py-3 text-sm font-medium text-white bg-blue-500 rounded-lg">
+                            <i class="fas fa-home mr-3"></i>
+                            Feed
                         </a>
                         <a href="#" id="nav-likes" class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 opacity-50 cursor-not-allowed rounded-lg" tabindex="-1" aria-disabled="true">
                             <i class="fas fa-heart mr-3"></i>
@@ -194,7 +195,7 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
-                        <input id="top-search-input" name="top-search" type="text" class="block w-full pl-10 pr-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search tracks, artists, or hashtags" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="off">
+                        <input id="top-search-input" name="top-search" type="text" class="block w-full pl-10 pr-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="off">
                     </div>
                 </div>
                 <!-- Unified top nav actions -->
