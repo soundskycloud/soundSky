@@ -229,7 +229,20 @@ if (navLikes) navLikes.onclick = (e) => {
     fetchSoundskyFeed({ mode: 'likes' });
 };
 
-// Update fetchSoundskyFeed to accept mode
+// --- Utility: Fetch audio blob URL with CORS fallback ---
+async function fetchAudioBlobUrl(userDid, blobRef) {
+    const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+    let resp = await fetch(blobUrl);
+    if (!resp.ok) {
+        const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
+        resp = await fetch(corsProxyUrl);
+    }
+    if (!resp.ok) throw new Error('Blob fetch failed');
+    const audioBlob = await resp.blob();
+    return URL.createObjectURL(audioBlob);
+}
+
+// Update fetchSoundskyFeed to use filterAudioPosts
 async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
     feedLoading.classList.remove('hidden');
     if (!append) {
@@ -264,46 +277,20 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
             }
             localCursor = feed && feed.data && feed.data.cursor || null;
             lastCursor = localCursor;
-            // Filter for audio posts only
-            let audioPosts;
+            // Use filterAudioPosts utility
+            let audioPosts = [];
             if (mode === 'home') {
-                audioPosts = feed && feed.data && feed.data.feed
-                    ? feed.data.feed.filter(item => {
-                        const post = item.post || item;
-                        const tags = post.record && post.record.tags;
-                        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
-                        const embed = post.record && post.record.embed;
-                        let fileEmbed = null;
-                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                    })
-                    : (feed && feed.data && feed.data.posts || []).filter(post => {
-                        const tags = post.record && post.record.tags;
-                        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
-                        const embed = post.record && post.record.embed;
-                        let fileEmbed = null;
-                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                    });
+                if (feed && feed.data && feed.data.feed) {
+                    audioPosts = filterAudioPosts(feed.data.feed);
+                } else if (feed && feed.data && feed.data.posts) {
+                    audioPosts = filterAudioPosts(feed.data.posts);
+                }
             } else {
-                audioPosts = feed && feed.data && feed.data.feed
-                    ? feed.data.feed.filter(item => {
-                        const post = item.post || item;
-                        const embed = post.record && post.record.embed;
-                        let fileEmbed = null;
-                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                    })
-                    : (feed && feed.data && feed.data.posts || []).filter(post => {
-                        const embed = post.record && post.record.embed;
-                        let fileEmbed = null;
-                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                    });
+                if (feed && feed.data && feed.data.feed) {
+                    audioPosts = filterAudioPosts(feed.data.feed);
+                } else if (feed && feed.data && feed.data.posts) {
+                    audioPosts = filterAudioPosts(feed.data.posts);
+                }
             }
             if (audioPosts && audioPosts.length > 0) {
                 foundAudio = true;
@@ -334,17 +321,8 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         });
         window.soundskyWavesurfers = {};
     }
-    // Build feed HTML in a string
-    let html = '';
     // Only render posts with audio content
-    const audioPosts = posts.filter(item => {
-        const post = item.post || item;
-        const embed = post.record && post.record.embed;
-        let fileEmbed = null;
-        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-    });
+    const audioPosts = filterAudioPosts(posts);
     if (!audioPosts.length) {
         feedContainer.innerHTML = `<div class="text-center text-gray-500 py-8">
             It's quiet in here - let's post some music or <a href="#" id="go-discover-link" class="text-blue-500 underline">follow other artists</a>.
@@ -364,37 +342,21 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
     }
     // Store info for initializing WaveSurfer after DOM update
     const wavesurferInitQueue = [];
+    let html = '';
     for (const item of audioPosts) {
         const post = item.post || item; // support both timeline and search result
         const user = post.author;
-        const text = post.record.text || '';
-        const did = user.did;
-        let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
-        const displayName = user.displayName || user.handle || 'Unknown';
-        const time = formatRelativeTime(post.indexedAt);
         let audioHtml = '';
         let audioBlobUrl = null;
-        let audioWaveformId = null;
+        let audioWaveformId = `waveform-${post.cid}`;
         let fileEmbed = null;
         const embed = post.record && post.record.embed;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
         if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-            const mimeType = fileEmbed.file.mimeType;
-            audioWaveformId = `waveform-${post.cid}`;
             try {
-                // Direct fetch to the public getBlob endpoint
-                const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
-                let resp = await fetch(blobUrl);
-                if (!resp.ok) {
-                    // Try with CORS proxy if direct fetch fails
-                    const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
-                    resp = await fetch(corsProxyUrl);
-                }
-                if (!resp.ok) throw new Error('Blob fetch failed');
-                const audioBlob = await resp.blob();
-                audioBlobUrl = URL.createObjectURL(audioBlob);
+                audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
             } catch (e) {
                 audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
             }
@@ -417,87 +379,17 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
             }
         }
-        // Show delete button if the logged-in user is the author
-        let deleteBtnHtml = '';
-        if (agent.session && agent.session.did === user.did) {
-            deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}"><i class="fa-solid fa-trash-can"></i></button>`;
-        }
-        // Show follow button if not following and not self
-        let followBtnHtml = '';
-        if (agent.session && agent.session.did !== user.did) {
-            const isFollowing = user.viewer && user.viewer.following;
-            if (isFollowing) {
-                followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
-            } else {
-                followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
-            }
-        }
-        // Like and repost buttons
-        const liked = post.viewer && post.viewer.like;
-        const reposted = post.viewer && post.viewer.repost;
-        const likeCount = post.likeCount || 0;
-        const repostCount = post.repostCount || 0;
-        let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}">
-            <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
-        let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
-            <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
-        if (text.trim() || audioHtml) {
-            // Comment UI IDs
-            const commentSectionId = `comments-${post.cid}`;
-            const commentFormId = `comment-form-${post.cid}`;
-            const commentInputId = `comment-input-${post.cid}`;
-            const commentSendId = `comment-send-${post.cid}`;
-            const currentUserAvatar = (agent.session && agent.session.did)
-                ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
-                : defaultAvatar;
-            html += `
-                <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
-                    <div class="p-4">
-                        <div class="flex items-start">
-                            <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                            <div class="ml-3 flex-1">
-                                <div class="flex items-center">
-                                    <button class="artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline" data-did="${did}">${displayName}</button>
-                                    <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
-                                    ${deleteBtnHtml}
-                                    ${followBtnHtml}
-                                </div>
-                                <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${text}</button>
-                                ${audioHtml}
-                                <div class="mt-3 flex items-center space-x-4">
-                                    ${likeBtnHtml}
-                                    ${repostBtnHtml}
-                                </div>
-                                <div class='mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
-                                    <div class='flex items-center gap-2 mb-2'>
-                                        <img src='${currentUserAvatar}' class='h-8 w-8 rounded-full' alt='Me' onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                                        <form id='${commentFormId}' class='flex-1 flex items-center gap-2'>
-                                            <input id='${commentInputId}' type='text' placeholder='Write a comment' class='flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none' maxlength='280' autocomplete='off' />
-                                            <button id='${commentSendId}' type='submit' class='p-2 text-blue-500 hover:text-blue-600' title='Send'>
-                                                <svg width='20' height='20' fill='none' viewBox='0 0 20 20'><path d='M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z' fill='currentColor'/></svg>
-                                            </button>
-                                        </form>
-                                    </div>
-                                    <div id='${commentSectionId}' class='space-y-2'></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    }
-    feedContainer.innerHTML = html;
-    // After rendering all posts, initialize all WaveSurfer instances
-    for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
-        setTimeout(() => initWaveSurfer(audioWaveformId, audioBlobUrl), 0);
+        html += renderPostCard({ post, user, audioHtml });
     }
     // At the end, add Load More button if needed
     if (showLoadMore) {
         html += `<div class="flex justify-center py-4"><button id="load-more-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Load More</button></div>`;
     }
     feedContainer.innerHTML = html;
+    // After rendering all posts, initialize all WaveSurfer instances
+    for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
+        setTimeout(() => initWaveSurfer(audioWaveformId, audioBlobUrl), 0);
+    }
     // Load More button event
     if (showLoadMore) {
         const loadMoreBtn = document.getElementById('load-more-btn');
@@ -656,15 +548,7 @@ async function renderSinglePostView(postUri) {
         const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
         const mimeType = fileEmbed.file.mimeType;
         try {
-            const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
-            let resp = await fetch(blobUrl);
-            if (!resp.ok) {
-                const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
-                resp = await fetch(corsProxyUrl);
-            }
-            if (!resp.ok) throw new Error('Blob fetch failed');
-            const audioBlob = await resp.blob();
-            audioBlobUrl = URL.createObjectURL(audioBlob);
+            audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
         } catch (e) {
             audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
         }
@@ -720,36 +604,7 @@ async function renderSinglePostView(postUri) {
     document.getElementById('single-post-content').innerHTML = `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-8 mb-8">
             <div class="p-4">
-                <div class="flex items-start">
-                    <img class="h-14 w-14 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                    <div class="ml-4 flex-1">
-                        <div class="flex items-center">
-                            <button class="artist-link font-bold text-gray-900 dark:text-gray-100 hover:underline" data-did="${did}">${displayName}</button>
-                            <span class="mx-2 text-gray-500 dark:text-gray-400">·</span>
-                            <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
-                            ${deleteBtnHtml}
-                            ${followBtnHtml}
-                        </div>
-                        <button class="post-title-link block font-bold text-xl text-gray-900 dark:text-white mt-2 mb-2" data-post-uri="${String(post.uri)}">${text}</button>
-                        ${audioHtml}
-                        <div class="mt-4 flex items-center space-x-6">
-                            ${likeBtnHtml}
-                            ${repostBtnHtml}
-                        </div>
-                        <div class='mt-6 bg-gray-50 dark:bg-gray-800 rounded-lg p-4'>
-                            <div class='flex items-center gap-2 mb-2'>
-                                <img src='${currentUserAvatar}' class='h-8 w-8 rounded-full' alt='Me' onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                                <form id='${commentFormId}' class='flex-1 flex items-center gap-2'>
-                                    <input id='${commentInputId}' type='text' placeholder='Write a comment' class='flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none' maxlength='280' autocomplete='off' />
-                                    <button id='${commentSendId}' type='submit' class='p-2 text-blue-500 hover:text-blue-600' title='Send'>
-                                        <svg width='20' height='20' fill='none' viewBox='0 0 20 20'><path d='M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z' fill='currentColor'/></svg>
-                                    </button>
-                                </form>
-                            </div>
-                            <div id='${commentSectionId}' class='space-y-2'></div>
-                        </div>
-                    </div>
-                </div>
+                ${renderPostCard({ post, user, audioHtml })}
             </div>
         </div>
     `;
@@ -992,14 +847,6 @@ window.addEventListener('popstate', () => {
     }
 });
 
-/*
-// After rendering feed, add click handlers
-const origRenderFeed = renderFeed;
-renderFeed = async function(...args) {
-    await origRenderFeed.apply(this, args);
-    addSinglePostClickHandlers();
-};
-*/
 
 // Add style for .post-title-link if not present
 if (!document.getElementById('post-title-link-style')) {
@@ -1137,17 +984,8 @@ async function renderArtistPage(did) {
         container.innerHTML = `<div class='text-red-500'>Failed to load artist tracks.</div>`;
         return;
     }
-    // Filter for audio posts (reuse feed logic)
-    const audioPosts = posts.filter(item => {
-        const post = item.post || item;
-        const tags = post.record && post.record.tags;
-        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
-        const embed = post.record && post.record.embed;
-        let fileEmbed = null;
-        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-    });
+    // Use filterAudioPosts utility
+    const audioPosts = filterAudioPosts(posts);
     // Render profile header
     let avatarUrl = profile.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
     let displayName = profile.displayName || profile.handle || 'Unknown';
@@ -1167,10 +1005,6 @@ async function renderArtistPage(did) {
     if (audioPosts.length === 0) {
         tracksHtml = `<div class='text-center text-gray-400 py-8'>No tracks yet.</div>`;
     } else {
-        // Use a custom renderFeed-like function for this container
-        // We'll call renderFeed but in a special mode
-        // Instead, let's reuse the rendering logic inline for now
-        // (to avoid breaking global feed state)
         let html = '';
         const wavesurferInitQueue = [];
         for (const item of audioPosts) {
@@ -1192,15 +1026,7 @@ async function renderArtistPage(did) {
                 const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
                 const mimeType = fileEmbed.file.mimeType;
                 try {
-                    const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
-                    let resp = await fetch(blobUrl);
-                    if (!resp.ok) {
-                        const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
-                        resp = await fetch(corsProxyUrl);
-                    }
-                    if (!resp.ok) throw new Error('Blob fetch failed');
-                    const audioBlob = await resp.blob();
-                    audioBlobUrl = URL.createObjectURL(audioBlob);
+                    audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
                 } catch (e) {
                     audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
                 }
@@ -1223,73 +1049,7 @@ async function renderArtistPage(did) {
                     wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
                 }
             }
-            // Like/repost/delete/follow buttons (reuse logic)
-            let deleteBtnHtml = '';
-            if (agent.session && agent.session.did === user.did) {
-                deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
-            }
-            let followBtnHtml = '';
-            if (agent.session && agent.session.did !== user.did) {
-                const isFollowing = user.viewer && user.viewer.following;
-                if (isFollowing) {
-                    followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
-                } else {
-                    followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
-                }
-            }
-            const liked = post.viewer && post.viewer.like;
-            const reposted = post.viewer && post.viewer.repost;
-            const likeCount = post.likeCount || 0;
-            const repostCount = post.repostCount || 0;
-            let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}">
-                <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
-            let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
-                <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
-            if (text.trim() || audioHtml) {
-                const commentSectionId = `comments-${post.cid}`;
-                const commentFormId = `comment-form-${post.cid}`;
-                const commentInputId = `comment-input-${post.cid}`;
-                const commentSendId = `comment-send-${post.cid}`;
-                const currentUserAvatar = (agent.session && agent.session.did)
-                    ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
-                    : defaultAvatar;
-                html += `
-                    <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
-                        <div class="p-4">
-                            <div class="flex items-start">
-                                <img class="h-10 w-10 rounded-full" src="${avatar}" alt="${user.handle}" onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                                <div class="ml-3 flex-1">
-                                    <div class="flex items-center">
-                                        <button class="artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline" data-did="${did}">${displayName}</button>
-                                        <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">${time}</span>
-                                        ${deleteBtnHtml}
-                                        ${followBtnHtml}
-                                    </div>
-                                    <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${text}</button>
-                                    ${audioHtml}
-                                    <div class="mt-3 flex items-center space-x-4">
-                                        ${likeBtnHtml}
-                                        ${repostBtnHtml}
-                                    </div>
-                                    <div class='mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
-                                        <div class='flex items-center gap-2 mb-2'>
-                                            <img src='${currentUserAvatar}' class='h-8 w-8 rounded-full' alt='Me' onerror="this.onerror=null;this.src='${defaultAvatar}';">
-                                            <form id='${commentFormId}' class='flex-1 flex items-center gap-2'>
-                                                <input id='${commentInputId}' type='text' placeholder='Write a comment' class='flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none' maxlength='280' autocomplete='off' />
-                                                <button id='${commentSendId}' type='submit' class='p-2 text-blue-500 hover:text-blue-600' title='Send'>
-                                                    <svg width='20' height='20' fill='none' viewBox='0 0 20 20'><path d='M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z' fill='currentColor'/></svg>
-                                                </button>
-                                            </form>
-                                        </div>
-                                        <div id='${commentSectionId}' class='space-y-2'></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+            html += renderPostCard({ post, user, audioHtml });
         }
         tracksHtml = html;
         // After rendering, initialize WaveSurfer instances
@@ -1688,23 +1448,13 @@ if (searchInput) {
             try {
                 const params = { q: `${query} #soundskyaudio`, limit: 50 };
                 const feed = await agent.api.app.bsky.feed.searchPosts(params);
-                // Filter for audio posts only (reuse logic)
-                const audioPosts = feed && feed.data && feed.data.feed
-                    ? feed.data.feed.filter(item => {
-                        const post = item.post || item;
-                        const embed = post.record && post.record.embed;
-                        let fileEmbed = null;
-                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                    })
-                    : (feed && feed.data && feed.data.posts || []).filter(post => {
-                        const embed = post.record && post.record.embed;
-                        let fileEmbed = null;
-                        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                        return fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/');
-                    });
+                // Use filterAudioPosts utility
+                let audioPosts = [];
+                if (feed && feed.data && feed.data.feed) {
+                    audioPosts = filterAudioPosts(feed.data.feed);
+                } else if (feed && feed.data && feed.data.posts) {
+                    audioPosts = filterAudioPosts(feed.data.posts);
+                }
                 await renderFeed(audioPosts, { showLoadMore: false });
             } finally {
                 feedLoading.classList.add('hidden');
@@ -1715,6 +1465,8 @@ if (searchInput) {
 
 // Update follow button event delegation for follow/unfollow toggle
 feedContainer.addEventListener('click', async function(e) {
+    // ... existing delete button logic ...
+    // ... existing like/repost logic ...
     // Follow/unfollow logic
     const followBtn = e.target.closest('.follow-user-btn');
     if (followBtn && followBtn.getAttribute('data-did')) {
