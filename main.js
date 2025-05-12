@@ -36,7 +36,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             } else if (artistParam) {
                 renderArtistPage(artistParam);
             } else {
-                fetchSoundskyFeed();
+                setActiveNav('nav-discover');
+                fetchSoundskyFeed({ mode: 'discover' });
             }
         } catch (e) {
             localStorage.removeItem('bskySession');
