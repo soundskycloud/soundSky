@@ -1,10 +1,11 @@
-<img src="https://github.com/user-attachments/assets/3cc1d361-7fdb-43c9-a90e-b4e81f93d754" width=300 >
+<img src="https://github.com/user-attachments/assets/c32acf81-8f14-48a8-a91f-a3eb5c7c4003" width=500 >
 
-> ATProto/bsky based Soundcloud Alternative for Music Makers
+# 🎵 SoundSky
+> ATProto/bsky based Soundcloud Alternative for Indie Music Makers 
 
 #### Status
-🔥 Working, Experimental<br>
-👉 Try it at [soundsky.glitch.me](https://soundsky.glitch.me)<br>
+🔥 Experimental, Unstable <br>
+👉 Try it at [soundsky.cloud](https://soundsky.cloud)<br>
 
 ##### Features
 - Infraless: exists on top of bsky.social auth & blob storage
