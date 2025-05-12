@@ -6,8 +6,8 @@
 > ATProto/bsky based Soundcloud Alternative for Indie Music Makers 
 
 #### Status
-👉 Try it at [soundsky.cloud](https://soundsky.cloud)<br>
-🔥 Experimental <br>
+👉 Live at [soundsky.cloud](https://soundsky.cloud)<br>
+🔥 Buggy & Experimental <br>
 
 ##### Features
 - Infraless: exists on top of bsky.social auth & blob storage
