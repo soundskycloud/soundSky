@@ -1248,7 +1248,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     let embed = post.record && post.record.embed;
     let images = [];
     // Debug: log the post object when scanning for images
-    console.log('DEBUG: renderPostCard post object:', post);
+    // console.log('DEBUG: renderPostCard post object:', post);
     // Check for recordWithMedia (audio+image)
     if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
         images = embed.media.images;
@@ -1712,7 +1712,7 @@ async function getCount(namespace, key) {
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch count');
     const data = await response.json();
-    console.log('Count:', namespace, key, data);
+    // console.log('Count:', namespace, key, data);
     return data.value;
   }
   
@@ -1727,12 +1727,6 @@ async function incrementCount(namespace, key) {
     const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to increment count');
     const data = await response.json();
-    console.log('Increment:', namespace, key, data.value);
-    
-    const el = document.getElementById(`play-counter-${key.replace("waveform-","")}`);
-    if (el && el.querySelector('span')) {
-        el.querySelector('span').textContent = data.value;
-    } else { console.log('not found', key)}
-          
+    // console.log('Increment:', namespace, key, data.value);
     return data.value;
 }
