@@ -174,24 +174,24 @@
         <!-- Main content -->
         <div class="flex flex-col flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
             <!-- Top navigation -->
-            <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
+            <div class="flex items-center h-16 px-4 border-b border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
                 <div class="flex items-left md:hidden">
                     <div class="flex items-center mr-4">
                         <i class="fas fa-wave-square text-blue-500 text-xl mr-2"></i>
                         <span class="text-lg font-bold">SoundSky</span>
                     </div>
                 </div>
-                
-                <div class="flex-1 max-w-xl mx-4 hidden md:block">
+                <!-- Search input: use all available flex space -->
+                <div class="flex-1 min-w-0 mx-2">
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
-                        <input type="text" class="block w-full pl-10 pr-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search tracks, artists, or hashtags">
+                        <input id="top-search-input" name="top-search" type="text" class="block w-full pl-10 pr-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search tracks, artists, or hashtags" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="off">
                     </div>
                 </div>
-                
-                <div class="flex items-center space-x-4">
+                <!-- Unified top nav actions -->
+                <div class="flex items-center justify-end space-x-2 md:space-x-4" id="top-nav-actions">
                     <!-- Mobile nav: Feed and Discover -->
                     <nav class="flex md:hidden space-x-2 mr-2">
                         <a href="#" id="topnav-feed" class="flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg">
@@ -201,13 +201,15 @@
                             <i class="fas fa-compass"></i>
                         </a>
                     </nav>
+                    <!-- Upload, Logout, and Volume will be injected here by JS -->
+                    <!-- Theme toggle -->
                     <button id="theme-toggle" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none" title="Toggle light/dark mode">
                         <i id="theme-toggle-icon" class="fas fa-moon"></i>
                     </button>
+                    <!-- User avatar -->
                     <button class="flex items-center text-sm rounded-full focus:outline-none">
                         <img id="current-user-avatar" class="h-8 w-8 rounded-full" src="/default-avatar.png" alt="User profile">
                     </button>
-
                 </div>
             </div>
             
@@ -233,8 +235,7 @@
                     <!-- Feed -->
                     <div id="feed" class="space-y-4">
                         <div id="feed-loading" class="text-center text-gray-400 py-8 hidden">
-                          Loading...<br><br>
-                          <img src="loading.webp" style="margin:auto;width: 15%;">
+                          <img src="loading.webp" style="margin:auto;width: 80px;">
                       </div>
                     </div>
                 </div>
@@ -243,7 +244,7 @@
     </div>
 
     <!-- Login Form -->
-    <div id="login-form" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
+    <div id="login-form" style="display:none" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
         <div class="bg-white rounded-xl shadow-lg p-8 w-80 flex flex-col items-center">
             <h2 class="text-xl font-bold mb-4 text-gray-900">Sign in to SoundSky</h2>
             <input id="username" class="mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 text-gray-900" placeholder="bsky handle (e.g. user.bsky.social)" />
@@ -309,6 +310,38 @@
       var topDiscover = document.getElementById('topnav-discover');
       if (topFeed) topFeed.onclick = function(e) { e.preventDefault(); document.getElementById('nav-feed').click(); };
       if (topDiscover) topDiscover.onclick = function(e) { e.preventDefault(); document.getElementById('nav-discover').click(); };
+    });
+    </script>
+    <script>
+    // --- Top bar logo and user avatar navigation ---
+    document.addEventListener('DOMContentLoaded', function() {
+      // Logo click navigates to Feed
+      var logoEls = document.querySelectorAll('.fa-wave-square, .text-xl.font-bold, .text-lg.font-bold');
+      logoEls.forEach(function(el) {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function() {
+          var feedBtn = document.getElementById('nav-feed');
+          if (feedBtn) feedBtn.click();
+        });
+      });
+      // User avatar click navigates to /?artist={did}
+      var avatar = document.getElementById('current-user-avatar');
+      if (avatar) {
+        avatar.style.cursor = 'pointer';
+        avatar.addEventListener('click', function() {
+          try {
+            var session = localStorage.getItem('bskySession');
+            if (session) {
+              var did = JSON.parse(session).did;
+              if (did) {
+                window.location.href = '/?artist=' + encodeURIComponent(did);
+                return;
+              }
+            }
+          } catch (e) {}
+          // fallback: do nothing or show a message
+        });
+      }
     });
     </script>
 </body>
