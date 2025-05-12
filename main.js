@@ -363,6 +363,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             if (audioBlobUrl && audioWaveformId) {
                 audioHtml = `
                   <div class="flex items-center gap-2 mt-3 audioplayerbox">
+                    <!--IMG-FEED-->
                     <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
                       <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
                         <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
@@ -642,6 +643,7 @@ async function renderSinglePostView(postUri) {
         if (audioBlobUrl && audioWaveformId) {
             audioHtml = `
               <div class="flex items-center gap-2 mt-3">
+              <!--IMG-ARTIST-->
                 <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
                   <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
                     <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
@@ -1023,7 +1025,7 @@ async function renderArtistPage(did) {
     }
     feedContainer.innerHTML = `<div id='artist-page-content'></div>`;
     const container = document.getElementById('artist-page-content');
-    container.innerHTML = `<div class='text-center text-gray-400 py-8'>Loading artist...</div>`;
+    container.innerHTML = `<div class='text-center text-gray-400 py-8'><img src="loading.webp" style="margin:auto;width: 80px;"></div>`;
     let profile;
     try {
         const res = await agent.getProfile({ actor: did });
@@ -1055,7 +1057,6 @@ async function renderArtistPage(did) {
         <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">${displayName}</div>
         <div class="text-gray-500 mb-2">${handle}</div>
         <div class="max-w-xl text-center text-gray-700 dark:text-gray-300 mb-4">${description}</div>
-        <button id="artist-back-btn" class="px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700">Back</button>
       </div>
     `;
     // Render audio posts (reuse renderFeed, but in this container)
@@ -1091,6 +1092,7 @@ async function renderArtistPage(did) {
                 if (audioBlobUrl && audioWaveformId) {
                     audioHtml = `
                       <div class="flex items-center gap-2 mt-3 audioplayerbox">
+                        <!--IMG-FEED-->
                         <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
                           <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
                             <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
@@ -1118,19 +1120,6 @@ async function renderArtistPage(did) {
         }, 0);
     }
     container.innerHTML = headerHtml + `<div class='mx-auto'>${tracksHtml}</div>`;
-    // Back button handler
-    document.getElementById('artist-back-btn').onclick = () => {
-        // Show upload form again if on home
-        const uploadForm = document.getElementById('create-audio-post');
-        if (uploadForm) uploadForm.style.display = '';
-        // If we came from a single post, restore it, else go to feed
-        if (window._soundskyLastView && window._soundskyLastView.type === 'single') {
-            renderSinglePostView(window._soundskyLastView.postUri);
-        } else {
-            clearAllParamsInUrl();
-            fetchSoundskyFeed();
-        }
-    };
 }
 
 // --- 4. Add event delegation for username clicks ---
@@ -1255,6 +1244,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
 
     // --- Artwork image logic ---
     let artworkHtml = '';
+    let artworkUrl = '';
     let embed = post.record && post.record.embed;
     let images = [];
     // Debug: log the post object when scanning for images
@@ -1274,7 +1264,8 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                     if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
                         // Only show if it's a direct image link
                         if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
-                            artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+                            // artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+                            artworkUrl = `<img src="${feature.uri}" style="max-height: 48px;"/>`;
                         }
                     }
                 }
@@ -1293,7 +1284,8 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
             // Synchronous HTML, so we use the bsky blob endpoint directly
             imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
         }
-        artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+        // artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+        artworkUrl = `<img src="${imgUrl}"/>`;
     }
 
     // Remove image links from displayed post text
@@ -1330,7 +1322,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                         </div>
                         <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${displayText}</button>
                         ${artworkHtml}
-                        ${audioHtml}
+                        ${audioHtml.replace('<!--IMG-FEED-->',artworkUrl)}
                         <div class="mt-3 flex items-center space-x-4">
                             ${likeBtnHtml}
                             ${repostBtnHtml}
