@@ -1307,6 +1307,11 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
         }
     }
 
+     // Play counter placeholder (will be filled in after render)
+     let playCounterId = `play-counter-${post.cid}`;
+     let playCounterHtmlButton = `<button class="play-counter-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-blue-500" id="${playCounterId}"><i class="fas fa-play"></i><span>...</span></button>`;
+     let playCounterHtml = `<img src="https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays">`;
+
     return `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
             <div class="p-4">
@@ -1324,6 +1329,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                         ${artworkHtml}
                         ${audioHtml.replace('<!--IMG-FEED-->',artworkUrl)}
                         <div class="mt-3 flex items-center space-x-4">
+                            ${playCounterHtml}
                             ${likeBtnHtml}
                             ${repostBtnHtml}
                         </div>
@@ -1386,6 +1392,7 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                     window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
         // Play/pause button
                     const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+                    let hasCountedPlay = false;
                     if (playBtn) {
                         const svg = playBtn.querySelector('.wavesurfer-play-icon');
                         playBtn.onclick = () => {
@@ -1401,6 +1408,11 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                             } else {
                                 wavesurfer.play();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                                if (!hasCountedPlay) {
+                                    hasCountedPlay = true;
+                                    // Use 'soundskycloud' as namespace, and audioWaveformId as key
+                                    incrementCount('soundskycloud', audioWaveformId).catch(() => {});
+                                }
                             }
                         };
                         wavesurfer.on('finish', () => {
@@ -1687,3 +1699,40 @@ feedContainer.addEventListener('click', async function(e) {
         return;
     }
 });
+
+// --- Play Counter Helpers ---
+/**
+ * Get the current count from CounterAPI
+ * @param {string} namespace - Your domain or logical grouping (in our case 'soundskycloud')
+ * @param {string} key - Unique identifier for the play counter (e.g., did of the post)
+ * @returns {Promise<number>} - Resolves to the current count
+ */
+async function getCount(namespace, key) {
+    const url = `https://counterapi.com/api/${namespace}/play/${key}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch count');
+    const data = await response.json();
+    console.log('Count:', namespace, key, data);
+    return data.value;
+  }
+  
+/**
+ * Increment the counter by 1
+ * @param {string} namespace - Your domain or logical grouping
+ * @param {string} key - Unique identifier for the counter
+ * @returns {Promise<number>} - Resolves to the updated count after increment
+ */
+async function incrementCount(namespace, key) {
+    const url = `https://counterapi.com/api/${namespace}/play/${key}`;
+    const response = await fetch(url, { method: 'GET' });
+    if (!response.ok) throw new Error('Failed to increment count');
+    const data = await response.json();
+    console.log('Increment:', namespace, key, data.value);
+    
+    const el = document.getElementById(`play-counter-${key.replace("waveform-","")}`);
+    if (el && el.querySelector('span')) {
+        el.querySelector('span').textContent = data.value;
+    } else { console.log('not found', key)}
+          
+    return data.value;
+}
