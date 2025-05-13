@@ -834,7 +834,7 @@ async function renderSinglePostView(postUri) {
         : defaultAvatar;
     // Render single post content in feed container
     document.getElementById('single-post-content').innerHTML = `
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-8 mb-8">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-1 mb-8">
             <div class="p-4">
                 ${renderPostCard({ post, user, audioHtml })}
             </div>
