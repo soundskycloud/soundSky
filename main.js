@@ -597,6 +597,7 @@ function clearAllParamsInUrl() {
 }
 
 async function renderSinglePostView(postUri) {
+    feedLoading.classList.add('hidden');
     // Hide upload form in single mode
     const uploadForm = document.getElementById('create-audio-post');
     if (uploadForm) uploadForm.style.display = 'none';
@@ -642,9 +643,9 @@ async function renderSinglePostView(postUri) {
             audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
         }
         if (audioBlobUrl && audioWaveformId) {
-            audioHtml = `
+            audioHtml = `<!--IMG-ARTIST-->
               <div class="flex items-center gap-2 mt-3">
-              <!--IMG-ARTIST-->
+              <!--IMG-FEED-->
                 <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
                   <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
                     <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
@@ -1265,7 +1266,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                     if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
                         // Only show if it's a direct image link
                         if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
-                            // artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+                            artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
                             artworkUrl = `<img src="${feature.uri}" style="max-height: 48px;"/>`;
                         }
                     }
@@ -1285,7 +1286,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
             // Synchronous HTML, so we use the bsky blob endpoint directly
             imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
         }
-        // artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+        artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
         artworkUrl = `<img src="${imgUrl}"/>`;
     }
 
@@ -1311,7 +1312,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
      // Play counter placeholder (will be filled in after render)
      let playCounterId = `play-counter-${post.cid}`;
      let playCounterHtmlButton = `<button class="play-counter-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-blue-500" id="${playCounterId}"><i class="fas fa-play"></i><span>...</span></button>`;
-     let playCounterHtml = `<img src="https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays">`;
+     let playCounterHtml = `<img src="https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays&readOnly=false">`;
 
     return `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
@@ -1327,8 +1328,8 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                             ${followBtnHtml}
                         </div>
                         <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${displayText}</button>
-                        ${artworkHtml}
-                        ${audioHtml.replace('<!--IMG-FEED-->',artworkUrl)}
+                        <!-- ${artworkHtml} -->
+                        ${audioHtml.replace('<!--IMG-FEED-->',artworkUrl).replace('<!--IMG-ARTIST-->',artworkHtml)}
                         <div class="mt-3 flex items-center space-x-4">
                             ${playCounterHtml}
                             ${likeBtnHtml}
@@ -1724,10 +1725,10 @@ async function getCount(namespace, key) {
  * @returns {Promise<number>} - Resolves to the updated count after increment
  */
 async function incrementCount(namespace, key) {
-    const url = `https://counterapi.com/api/${namespace}/play/${key}`;
+    const url = `https://counterapi.com/api/${namespace}/play/${key}?time=${Date.now()}&trackOnly=1`;
     const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to increment count');
     const data = await response.json();
-    // console.log('Increment:', namespace, key, data.value);
+    console.log('Increment:', namespace, key, data.value);
     return data.value;
 }
