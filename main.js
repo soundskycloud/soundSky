@@ -245,6 +245,8 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
 
 // Global flag to cancel feed loading
 let _soundskyFeedCancelled = false;
+// Global feed generation token for robust cancellation
+let _soundskyFeedGeneration = 0;
 
 // Helper: attach click handler to .post-title-link buttons
 function attachPostTitleLinkHandlers() {
@@ -254,6 +256,8 @@ function attachPostTitleLinkHandlers() {
                 e.preventDefault();
                 // Cancel feed loading/appending
                 _soundskyFeedCancelled = true;
+                // Robust: increment feed generation to cancel async appends
+                _soundskyFeedGeneration++;
                 // Hide feed immediately
                 feedContainer.style.display = 'none';
                 const postUri = title.getAttribute('data-post-uri');
@@ -267,11 +271,14 @@ function attachPostTitleLinkHandlers() {
     });
 }
 
+// In artist link navigation, also increment _soundskyFeedGeneration (if you have a similar handler, do the same)
+// If you have a function for artist links, add: _soundskyFeedGeneration++;
+
 // Helper: progressively append a single audio post card
 let _soundskyFirstCardAppended = false;
-async function appendAudioPostCard(audioPost) {
-    // If feed loading was cancelled, do not append further cards
-    if (_soundskyFeedCancelled) return;
+async function appendAudioPostCard(audioPost, feedGen) {
+    // If feed loading was cancelled or feedGen is stale, do not append further cards
+    if (_soundskyFeedCancelled || feedGen !== _soundskyFeedGeneration) return;
     const post = audioPost.post || audioPost;
     const user = post.author;
     let audioHtml = '';
@@ -297,7 +304,7 @@ async function appendAudioPostCard(audioPost) {
                 for (const feature of facet.features) {
                     if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
                         if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
-                            artworkUrl = `<img src="${feature.uri}" style="max-height: 48px;"/>`;
+                            artworkUrl = `<img src=\"${feature.uri}\" style=\"max-height: 48px;\"/>`;
                         }
                     }
                 }
@@ -312,7 +319,7 @@ async function appendAudioPostCard(audioPost) {
             const userDid = user.did;
             imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
         }
-        artworkUrl = `<img src="${imgUrl}"/>`;
+        artworkUrl = `<img src=\"${imgUrl}\"/>`;
     }
 
     // --- Audio HTML ---
@@ -325,26 +332,16 @@ async function appendAudioPostCard(audioPost) {
         }
         if (audioBlobUrl && audioWaveformId) {
             audioHtml = `
-              <div class="flex items-center gap-2 mt-3 audioplayerbox">
+              <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">
                 <!--IMG-FEED-->
-                <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
-                  <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
-                    <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
-                    <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
-                  </svg>
-                </button>
-                <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
-                  <div class="wavesurfer-time">0:00</div>
-                  <div class="wavesurfer-duration">0:00</div>
-                  <div class="wavesurfer-hover"></div>
-                </div>
-              </div>
-            `;
+                <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${audioWaveformId}\">\n                  <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                    <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                    <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n                  </svg>\n                </button>\n                <div id=\"${audioWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative\">\n                  <div class=\"wavesurfer-time\">0:00</div>\n                  <div class=\"wavesurfer-duration\">0:00</div>\n                  <div class=\"wavesurfer-hover\"></div>\n                </div>\n              </div>\n            `;
             // Inject artwork
             audioHtml = audioHtml.replace('<!--IMG-FEED-->', artworkUrl);
         }
     }
 
+    // Check again before appending (in case of async delay)
+    if (feedGen !== _soundskyFeedGeneration) return;
     const cardHtml = renderPostCard({ post, user, audioHtml });
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
@@ -375,6 +372,9 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
     // Reset the first card flag and cancel flag
     _soundskyFirstCardAppended = false;
     _soundskyFeedCancelled = false;
+    // Increment feed generation and capture for this load
+    _soundskyFeedGeneration++;
+    const thisFeedGen = _soundskyFeedGeneration;
     feedContainer.appendChild(feedLoading);
     try {
         let foundAudio = false;
@@ -425,7 +425,7 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
                 }
                 // Render each card as soon as it's ready
                 for (const audioPost of audioPosts) {
-                    await appendAudioPostCard(audioPost);
+                    await appendAudioPostCard(audioPost, thisFeedGen);
                 }
             }
             if (append && audioPosts && audioPosts.length > 0) break;
@@ -834,7 +834,7 @@ async function renderSinglePostView(postUri) {
         : defaultAvatar;
     // Render single post content in feed container
     document.getElementById('single-post-content').innerHTML = `
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-1 mb-8">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-8 mb-8">
             <div class="p-4">
                 ${renderPostCard({ post, user, audioHtml })}
             </div>
