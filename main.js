@@ -243,7 +243,128 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
     return URL.createObjectURL(audioBlob);
 }
 
-// Update fetchSoundskyFeed to use filterAudioPosts
+// Global flag to cancel feed loading
+let _soundskyFeedCancelled = false;
+
+// Helper: attach click handler to .post-title-link buttons
+function attachPostTitleLinkHandlers() {
+    document.querySelectorAll('.post-title-link').forEach(title => {
+        if (!title._soundskyHandlerAttached) {
+            title.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Cancel feed loading/appending
+                _soundskyFeedCancelled = true;
+                // Hide feed immediately
+                feedContainer.style.display = 'none';
+                const postUri = title.getAttribute('data-post-uri');
+                if (postUri) {
+                    setPostParamInUrl(postUri);
+                    renderSinglePostView(postUri);
+                }
+            });
+            title._soundskyHandlerAttached = true;
+        }
+    });
+}
+
+// Helper: progressively append a single audio post card
+let _soundskyFirstCardAppended = false;
+async function appendAudioPostCard(audioPost) {
+    // If feed loading was cancelled, do not append further cards
+    if (_soundskyFeedCancelled) return;
+    const post = audioPost.post || audioPost;
+    const user = post.author;
+    let audioHtml = '';
+    let audioBlobUrl = null;
+    let audioWaveformId = `waveform-${post.cid}`;
+    let fileEmbed = null;
+    const embed = post.record && post.record.embed;
+    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+
+    // --- Artwork logic (copied from renderPostCard) ---
+    let artworkUrl = '';
+    let images = [];
+    if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+        images = embed.media.images;
+    } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+        images = embed.images;
+    }
+    const facets = post.record && post.record.facets;
+    if (facets && Array.isArray(facets)) {
+        for (const facet of facets) {
+            if (facet.features && Array.isArray(facet.features)) {
+                for (const feature of facet.features) {
+                    if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
+                        if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
+                            artworkUrl = `<img src="${feature.uri}" style="max-height: 48px;"/>`;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (images.length > 0) {
+        const img = images[0];
+        let imgUrl = '';
+        if (img.image && img.image.ref) {
+            const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+            const userDid = user.did;
+            imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+        }
+        artworkUrl = `<img src="${imgUrl}"/>`;
+    }
+
+    // --- Audio HTML ---
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+        try {
+            audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
+        } catch (e) {
+            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
+        }
+        if (audioBlobUrl && audioWaveformId) {
+            audioHtml = `
+              <div class="flex items-center gap-2 mt-3 audioplayerbox">
+                <!--IMG-FEED-->
+                <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
+                  <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
+                    <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
+                  </svg>
+                </button>
+                <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
+                  <div class="wavesurfer-time">0:00</div>
+                  <div class="wavesurfer-duration">0:00</div>
+                  <div class="wavesurfer-hover"></div>
+                </div>
+              </div>
+            `;
+            // Inject artwork
+            audioHtml = audioHtml.replace('<!--IMG-FEED-->', artworkUrl);
+        }
+    }
+
+    const cardHtml = renderPostCard({ post, user, audioHtml });
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = cardHtml;
+    feedContainer.appendChild(tempDiv.firstElementChild);
+
+    // Hide feedLoading as soon as the first card is appended
+    if (!_soundskyFirstCardAppended) {
+        feedLoading.classList.add('hidden');
+        _soundskyFirstCardAppended = true;
+    }
+
+    // Initialize WaveSurfer for this card
+    if (audioBlobUrl && audioWaveformId) {
+        setTimeout(() => initWaveSurfer(audioWaveformId, audioBlobUrl), 0);
+    }
+    // Attach post-title-link click handler for this card
+    attachPostTitleLinkHandlers();
+}
+
+// Update fetchSoundskyFeed to render each card as soon as it's ready
 async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
     feedLoading.classList.remove('hidden');
     if (!append) {
@@ -251,11 +372,13 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
         loadedAudioPosts = [];
         nextCursor = null;
     }
+    // Reset the first card flag and cancel flag
+    _soundskyFirstCardAppended = false;
+    _soundskyFeedCancelled = false;
     feedContainer.appendChild(feedLoading);
     try {
         let foundAudio = false;
         let localCursor = nextCursor;
-        let newAudioPosts = [];
         let lastCursor = null;
         do {
             let feed;
@@ -295,17 +418,34 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
             }
             if (audioPosts && audioPosts.length > 0) {
                 foundAudio = true;
-                newAudioPosts = newAudioPosts.concat(audioPosts);
+                if (append) {
+                    loadedAudioPosts = loadedAudioPosts.concat(audioPosts);
+                } else {
+                    loadedAudioPosts = audioPosts;
+                }
+                // Render each card as soon as it's ready
+                for (const audioPost of audioPosts) {
+                    await appendAudioPostCard(audioPost);
+                }
             }
             if (append && audioPosts && audioPosts.length > 0) break;
         } while (!foundAudio && localCursor);
         nextCursor = lastCursor;
-        if (append) {
-            loadedAudioPosts = loadedAudioPosts.concat(newAudioPosts);
-        } else {
-            loadedAudioPosts = newAudioPosts;
+        // At the end, show Load More button if needed
+        if (!!nextCursor) {
+            // Remove any existing Load More button
+            const oldBtn = document.getElementById('load-more-btn');
+            if (oldBtn) oldBtn.remove();
+            // Add new Load More button
+            const btnDiv = document.createElement('div');
+            btnDiv.className = 'flex justify-center py-4';
+            btnDiv.innerHTML = '<button id="load-more-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Load More</button>';
+            feedContainer.appendChild(btnDiv);
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.onclick = () => fetchSoundskyFeed({ append: true });
+            }
         }
-        await renderFeed(loadedAudioPosts, { showLoadMore: !!nextCursor });
     } finally {
         feedLoading.classList.add('hidden');
     }
@@ -597,6 +737,7 @@ function clearAllParamsInUrl() {
 }
 
 async function renderSinglePostView(postUri) {
+    feedContainer.style.display = '';
     feedLoading.classList.add('hidden');
     // Hide upload form in single mode
     const uploadForm = document.getElementById('create-audio-post');
