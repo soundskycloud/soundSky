@@ -328,7 +328,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
         try {
             audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
         } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
+            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session expired.</div>`;
         }
         if (audioBlobUrl && audioWaveformId) {
             audioHtml = `
@@ -499,7 +499,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             try {
                 audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
             } catch (e) {
-                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
+                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session expired.</div>`;
             }
             if (audioBlobUrl && audioWaveformId) {
                 audioHtml = `
@@ -781,7 +781,7 @@ async function renderSinglePostView(postUri) {
         try {
             audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
         } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
+            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session expired.</div>`;
         }
         if (audioBlobUrl && audioWaveformId) {
             audioHtml = `<!--IMG-ARTIST-->
@@ -1230,7 +1230,7 @@ async function renderArtistPage(did) {
                 try {
                     audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
                 } catch (e) {
-                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable due to Bluesky CORS restrictions.</div>`;
+                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session Expired.</div>`;
                 }
                 if (audioBlobUrl && audioWaveformId) {
                     audioHtml = `
