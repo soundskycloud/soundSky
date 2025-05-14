@@ -1,7 +1,7 @@
 // Parse Bluesky post URI from query param (?uri=at://...)
 function getPostUri() {
   const params = new URLSearchParams(window.location.search);
-  return params.get('uri');
+  return params.get('uri') || params.get('url') || params.get('post');
 }
 
 const postUri = getPostUri();
