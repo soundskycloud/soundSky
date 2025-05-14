@@ -72,6 +72,10 @@ async function renderEmbedPlayer(uri) {
     }
     // End fix
     const userDid = post.author.did;
+    
+    // Extract artwork URL
+    let artworkUrl = extractArtworkUrl(post);
+    
     let audioBlobUrl;
     try {
       audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
@@ -79,25 +83,33 @@ async function renderEmbedPlayer(uri) {
       container.innerHTML = '<div style="color:red">Audio unavailable due to Bluesky CORS restrictions.</div>';
       return;
     }
+    
     // Render minimal player
     container.innerHTML = renderMinimalPlayer(post);
+    
+    // Update meta tags with post information
+    updateMetaTags(post, audioBlobUrl, artworkUrl);
+    
     // Initialize WaveSurfer
     setTimeout(() => initWaveSurferEmbed(audioBlobUrl), 0);
   } catch (e) {
+    console.error('Error rendering player:', e);
     container.innerHTML = '<div style="color:red">Error loading track.</div>';
   }
 }
 
-function renderMinimalPlayer(post) {
+function extractArtworkUrl(post) {
   // Extract artwork (from embed or facets)
   let artworkUrl = '';
   let embed = post.record && post.record.embed;
   let images = [];
+  
   if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
     images = embed.media.images;
   } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
     images = embed.images;
   }
+  
   const facets = post.record && post.record.facets;
   if (facets && Array.isArray(facets)) {
     for (const facet of facets) {
@@ -112,6 +124,7 @@ function renderMinimalPlayer(post) {
       }
     }
   }
+  
   if (images.length > 0) {
     const img = images[0];
     let imgUrl = '';
@@ -122,10 +135,19 @@ function renderMinimalPlayer(post) {
     }
     artworkUrl = imgUrl;
   }
+  
+  return artworkUrl;
+}
+
+function renderMinimalPlayer(post) {
+  // Extract artwork (from embed or facets)
+  let artworkUrl = extractArtworkUrl(post);
+  
   // Title and artist
   let title = post.record?.text || '';
   const artist = post.author?.displayName || post.author?.handle || '';
   // Remove image links from displayed post text
+  const facets = post.record && post.record.facets;
   if (facets && Array.isArray(facets)) {
     for (const facet of facets) {
       if (facet.features && Array.isArray(facet.features)) {
@@ -236,4 +258,95 @@ function initWaveSurferEmbed(audioBlobUrl) {
   wavesurfer.on('timeupdate', (currentTime) => {
     if (timeEl) timeEl.textContent = formatTime(currentTime);
   });
-} 
+}
+
+// New functions for meta tags and oEmbed
+
+function updateMetaTags(post, audioBlobUrl, artworkUrl) {
+  const postUri = getPostUri();
+  const title = post.record?.text || 'Audio Track';
+  const artist = post.author?.displayName || post.author?.handle || 'Unknown Artist';
+  const fullTitle = `${title} by ${artist}`;
+  const description = `Listen to ${title} by ${artist} on SoundSky`;
+  const currentUrl = window.location.href;
+  const embedUrl = currentUrl;
+  
+  // Update Open Graph meta tags
+  updateMetaTag('og:title', fullTitle);
+  updateMetaTag('og:description', description);
+  updateMetaTag('og:url', currentUrl);
+  updateMetaTag('og:type', 'music.song');
+  if (artworkUrl) {
+    updateMetaTag('og:image', artworkUrl);
+  }
+  if (audioBlobUrl) {
+    updateMetaTag('og:audio', audioBlobUrl);
+    updateMetaTag('og:audio:type', 'audio/mpeg');
+  }
+  
+  // Update Twitter Card meta tags
+  updateMetaTag('twitter:card', 'player');
+  updateMetaTag('twitter:title', fullTitle);
+  updateMetaTag('twitter:description', description);
+  if (artworkUrl) {
+    updateMetaTag('twitter:image', artworkUrl);
+  }
+  updateMetaTag('twitter:player', embedUrl);
+  updateMetaTag('twitter:player:width', '420');
+  updateMetaTag('twitter:player:height', '240');
+  
+  // Update oEmbed discovery link
+  const oembedUrl = `${window.location.origin}/oembed?url=${encodeURIComponent(currentUrl)}`;
+  updateOEmbedLinkTag(oembedUrl);
+  
+  // Generate and add an oEmbed response to the current page for discovery
+  generateOEmbedResponse(currentUrl, fullTitle, description, artworkUrl, 420, 240);
+}
+
+function updateMetaTag(property, content) {
+  let meta = document.querySelector(`meta[property="${property}"], meta[name="${property}"]`);
+  if (!meta) {
+    meta = document.createElement('meta');
+    if (property.startsWith('og:')) {
+      meta.setAttribute('property', property);
+    } else {
+      meta.setAttribute('name', property);
+    }
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute('content', content);
+}
+
+function updateOEmbedLinkTag(url) {
+  let link = document.querySelector('link[rel="alternate"][type="application/json+oembed"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.setAttribute('rel', 'alternate');
+    link.setAttribute('type', 'application/json+oembed');
+    link.setAttribute('title', 'SoundSky oEmbed');
+    document.head.appendChild(link);
+  }
+  link.setAttribute('href', url);
+}
+
+// Create a simple JSON file for oEmbed response
+function generateOEmbedResponse(url, title, description, thumbnailUrl, width, height) {
+  const oembedResponse = {
+    version: "1.0",
+    type: "rich",
+    provider_name: "SoundSky",
+    provider_url: window.location.origin,
+    title: title,
+    description: description,
+    thumbnail_url: thumbnailUrl,
+    thumbnail_width: 400,
+    thumbnail_height: 400,
+    html: `<iframe src="${url}" width="${width}" height="${height}" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>`,
+    width: width,
+    height: height
+  };
+  
+  // Since we don't have a backend, we'll make this available for the oembed.html page
+  window.oembedResponse = oembedResponse;
+  console.log('oEmbed response:', oembedResponse);
+}
