@@ -328,7 +328,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
         try {
             audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
         } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session expired.</div>`;
+            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
         }
         if (audioBlobUrl && audioWaveformId) {
             audioHtml = `
@@ -499,7 +499,7 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             try {
                 audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
             } catch (e) {
-                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session expired.</div>`;
+                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
             }
             if (audioBlobUrl && audioWaveformId) {
                 audioHtml = `
@@ -781,7 +781,7 @@ async function renderSinglePostView(postUri) {
         try {
             audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
         } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session expired.</div>`;
+            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
         }
         if (audioBlobUrl && audioWaveformId) {
             audioHtml = `<!--IMG-ARTIST-->
@@ -1230,7 +1230,7 @@ async function renderArtistPage(did) {
                 try {
                     audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
                 } catch (e) {
-                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session Expired.</div>`;
+                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
                 }
                 if (audioBlobUrl && audioWaveformId) {
                     audioHtml = `
@@ -1376,6 +1376,11 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     const repostCount = post.repostCount || 0;
     let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
     let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}"><i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
+    // --- Share button ---
+    const shareUrl = `/embed/?url=${encodeURIComponent(String(post.uri))}`;
+    let shareBtnHtml = `<button class="share-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-blue-500" data-shareurl="${shareUrl}" title="Copy embed link">
+        <i class="fas fa-share"></i>
+      </button>`;
     // Comment UI IDs
     const commentSectionId = `comments-${post.cid}`;
     const commentFormId = `comment-form-${post.cid}`;
@@ -1475,6 +1480,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                             ${playCounterHtml}
                             ${likeBtnHtml}
                             ${repostBtnHtml}
+                            ${shareBtnHtml}
                         </div>
                         <div class='mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
                             <div class='flex items-center gap-2 mb-2'>
@@ -1701,6 +1707,19 @@ feedContainer.addEventListener('click', async function(e) {
             alert('Failed to repost/unrepost post: ' + (err.message || err));
         }
         return;
+    }
+    // Share button
+    const shareBtn = e.target.closest('.share-post-btn');
+    if (shareBtn && shareBtn.getAttribute('data-shareurl')) {
+        const url = shareBtn.getAttribute('data-shareurl');
+        navigator.clipboard.writeText(window.location.origin + url).then(() => {
+            shareBtn.title = 'Link copied!';
+            shareBtn.classList.add('text-blue-500');
+            setTimeout(() => {
+                shareBtn.title = 'Copy embed link';
+                shareBtn.classList.remove('text-blue-500');
+            }, 1200);
+        });
     }
 });
 
