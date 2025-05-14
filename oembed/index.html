@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SoundSky oEmbed Response</title>
+</head>
+<body>
+  <script>
+    // Set appropriate content type for JSON
+    document.contentType = 'application/json';
+    
+    // Get the URL from the query parameter
+    const params = new URLSearchParams(window.location.search);
+    const url = params.get('url');
+    
+    if (!url) {
+      document.body.textContent = JSON.stringify({error: "Missing url parameter"});
+    } else {
+      // Extract the URI from the URL
+      let uri;
+      try {
+        const embedUrl = new URL(url);
+        uri = embedUrl.searchParams.get('uri');
+      } catch (e) {
+        uri = null;
+      }
+      
+      if (!uri) {
+        document.body.textContent = JSON.stringify({error: "Invalid URL or missing URI parameter"});
+      } else {
+        // Fetch the post information to create an oEmbed response
+        fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}`)
+          .then(res => res.json())
+          .then(data => {
+            const post = data.thread?.post || data.thread;
+            if (!post) {
+              throw new Error("Post not found");
+            }
+            
+            // Extract artwork
+            let artworkUrl = '';
+            let embed = post.record && post.record.embed;
+            let images = [];
+            
+            if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+              images = embed.media.images;
+            } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+              images = embed.images;
+            }
+            
+            const facets = post.record && post.record.facets;
+            if (facets && Array.isArray(facets)) {
+              for (const facet of facets) {
+                if (facet.features && Array.isArray(facet.features)) {
+                  for (const feature of facet.features) {
+                    if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
+                      if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
+                        artworkUrl = feature.uri;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            if (images.length > 0) {
+              const img = images[0];
+              let imgUrl = '';
+              if (img.image && img.image.ref) {
+                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                const userDid = post.author.did;
+                imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+              }
+              artworkUrl = imgUrl;
+            }
+            
+            const title = post.record?.text || 'Audio Track';
+            const artist = post.author?.displayName || post.author?.handle || 'Unknown Artist';
+            const fullTitle = `${title} by ${artist}`;
+            const description = `Listen to ${title} by ${artist} on SoundSky`;
+            
+            // Get the current domain
+            const domain = window.location.origin;
+            
+            // IMPORTANT: This is where we construct the iframe HTML
+            // Make sure we use the correct path and include the URI parameter
+            const playerUrl = `${domain}/embed/?uri=${encodeURIComponent(uri)}`;
+            const iframeHtml = `<iframe src="${playerUrl}" width="420" height="240" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>`;
+            
+            console.log("Generated iframe HTML:", iframeHtml);
+            
+            // Create oEmbed response with explicit HTML field
+            const oembedResponse = {
+              version: "1.0",
+              type: "rich",
+              provider_name: "SoundSky",
+              provider_url: domain,
+              title: fullTitle,
+              description: description,
+              thumbnail_url: artworkUrl || null,
+              thumbnail_width: artworkUrl ? 400 : null,
+              thumbnail_height: artworkUrl ? 400 : null,
+              html: iframeHtml,
+              width: 420,
+              height: 240
+            };
+            
+            // Log the response for debugging
+            console.log("Full oEmbed response:", oembedResponse);
+            
+            // Return JSON response - use textContent to avoid HTML encoding
+            document.body.textContent = JSON.stringify(oembedResponse);
+          })
+          .catch(e => {
+            document.body.textContent = JSON.stringify({error: e.message});
+          });
+      }
+    }
+  </script>
+</body>
+</html>
