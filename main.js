@@ -839,7 +839,7 @@ async function renderSinglePostView(postUri) {
     const time = formatRelativeTime(post.indexedAt);
     let audioHtml = '';
     let audioBlobUrl = null;
-    let audioWaveformId = `waveform-single-${post.cid}`;
+    let audioWaveformId = `waveform-${post.cid}`;
     let fileEmbed = null;
     const embed = post.record && post.record.embed;
     if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
@@ -1288,7 +1288,7 @@ async function renderArtistPage(did) {
             const time = formatRelativeTime(post.indexedAt);
             let audioHtml = '';
             let audioBlobUrl = null;
-            let audioWaveformId = `waveform-artist-${post.cid}`;
+            let audioWaveformId = `waveform-${post.cid}`;
             let fileEmbed = null;
             const embed = post.record && post.record.embed;
             if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
@@ -1629,7 +1629,7 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                                 if (!hasCountedPlay) {
                                     // hasCountedPlay = true;
                                     // Use 'soundskycloud' as namespace, and audioWaveformId as key
-                                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','').replace('single-','')).catch(() => {});
+                                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
                                 }
                             }
                         };
@@ -1954,7 +1954,7 @@ async function getCount(namespace, key) {
  * @returns {Promise<number>} - Resolves to the updated count after increment
  */
 async function incrementCount(namespace, key) {
-    key = key.replace('waveform-','').replace('single-','');
+    key = key.replace('waveform-','');
     const url = `https://counterapi.com/api/${namespace}/play/${key}?time=${Date.now()}`;
     const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to increment count');
