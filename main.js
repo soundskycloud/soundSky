@@ -1627,9 +1627,9 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                                 wavesurfer.play();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                                 if (!hasCountedPlay) {
-                                    hasCountedPlay = true;
+                                    // hasCountedPlay = true;
                                     // Use 'soundskycloud' as namespace, and audioWaveformId as key
-                                    incrementCount('soundskycloud', audioWaveformId).catch(() => {});
+                                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','').replace('single-','')).catch(() => {});
                                 }
                             }
                         };
@@ -1943,7 +1943,7 @@ async function getCount(namespace, key) {
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch count');
     const data = await response.json();
-    // console.log('Count:', namespace, key, data);
+    console.log('Count:', namespace, key, data);
     return data.value;
   }
   
@@ -1954,7 +1954,8 @@ async function getCount(namespace, key) {
  * @returns {Promise<number>} - Resolves to the updated count after increment
  */
 async function incrementCount(namespace, key) {
-    const url = `https://counterapi.com/api/${namespace}/play/${key}?time=${Date.now()}&trackOnly=1`;
+    key = key.replace('waveform-','').replace('single-','');
+    const url = `https://counterapi.com/api/${namespace}/play/${key}?time=${Date.now()}`;
     const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to increment count');
     const data = await response.json();
