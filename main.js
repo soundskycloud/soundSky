@@ -15,6 +15,69 @@ const defaultAvatar = '/default-avatar.png';
 const uploadForm = document.getElementById('create-audio-post');
 if (uploadForm) uploadForm.style.display = 'none';
 
+// --- Mini Liked Songs Sidebar ---
+function renderSidebarLikedSongs(likedAudioPosts) {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    let container = document.getElementById('sidebar-liked-songs');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'sidebar-liked-songs';
+        container.style.marginTop = '1rem';
+        sidebar.appendChild(container);
+    }
+    if (!likedAudioPosts || likedAudioPosts.length === 0) {
+        container.innerHTML = '<div class="text-xs text-gray-400 px-4"><i class="fas fa-heart mr-3"></i> No liked songs yet.</div>';
+        return;
+    }
+    container.innerHTML = `<div class="text-xs text-gray-500 font-semibold px-4 mb-2"><i class="fas fa-heart mr-3"></i> Liked Songs</div>` +
+        '<div style="max-height: 80%; overflow-y: auto;">' +
+        likedAudioPosts.map(item => {
+            const post = item.post || item;
+            const user = post.author;
+            let cover = '';
+            let embed = post.record && post.record.embed;
+            let images = [];
+            if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+                images = embed.media.images;
+            } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+                images = embed.images;
+            }
+            if (images.length > 0) {
+                const img = images[0];
+                let imgUrl = '';
+                if (img.image && img.image.ref) {
+                    const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                    const userDid = user.did;
+                    imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+                }
+                cover = `<img src="${imgUrl}" alt="cover" style="width:32px;height:32px;object-fit:cover;border-radius:6px;margin-right:8px;">`;
+            }
+            const artist = user.displayName || user.handle || '';
+            const title = (post.record?.text || '').split('\n')[0].slice(0, 40);
+            return `<a href="?post=${encodeURIComponent(post.uri)}" class="flex items-center mb-2 px-4 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition" style="text-decoration:none;">
+                ${cover}
+                <div style="min-width:0;">
+                  <div class="truncate font-medium text-gray-900 dark:text-gray-100" style="font-size:13px;">${title}</div>
+                  <div class="truncate text-gray-500" style="font-size:12px;">${artist}</div>
+                </div>
+            </a>`;
+        }).join('') + '</div>';
+}
+
+async function fetchAndRenderSidebarLikedSongs() {
+    if (!agent || !agent.session || !agent.session.did) return;
+    try {
+        const res = await agent.api.app.bsky.feed.getActorLikes({ actor: agent.session.did, limit: 30 });
+        let likedPosts = res.data?.feed || [];
+        // Filter for audio posts
+        likedPosts = filterAudioPosts(likedPosts);
+        renderSidebarLikedSongs(likedPosts);
+    } catch (e) {
+        renderSidebarLikedSongs([]);
+    }
+}
+
 // On page load, try to resume session
 window.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = 'blur(2px)';
@@ -39,6 +102,8 @@ window.addEventListener('DOMContentLoaded', async () => {
                 setActiveNav('nav-discover');
                 fetchSoundskyFeed({ mode: 'discover' });
             }
+            // Fetch and render sidebar liked songs after session resume
+            setTimeout(fetchAndRenderSidebarLikedSongs, 1200);
         } catch (e) {
             localStorage.removeItem('bskySession');
             loginForm.style.display = 'flex';
@@ -76,6 +141,8 @@ loginBtn.addEventListener('click', async () => {
         // Fetch and set current user avatar
         setCurrentUserAvatar();
         fetchSoundskyFeed();
+        // Fetch and render sidebar liked songs after login
+        setTimeout(fetchAndRenderSidebarLikedSongs, 1200);
     } catch (e) {
         loginError.textContent = 'Login failed: ' + (e.message || e);
         loginError.classList.remove('hidden');
@@ -223,12 +290,14 @@ const navDiscover = document.getElementById('nav-discover');
 const navLikes = document.getElementById('nav-likes');
 if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
 if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
+/*
 if (navLikes) navLikes.onclick = (e) => {
     e.preventDefault();
     setActiveNav('nav-likes');
     navLikes.classList.add('opacity-50', 'cursor-not-allowed');
     fetchSoundskyFeed({ mode: 'likes' });
 };
+*/
 
 // --- Utility: Fetch audio blob URL with CORS fallback ---
 async function fetchAudioBlobUrl(userDid, blobRef) {
