@@ -24,8 +24,6 @@
             font-family: 'Inter', sans-serif;
             background-color: #f8fafc;
         }
-        
-       
       
         ::-webkit-scrollbar {
           width: 8px; /* or height for horizontal */
@@ -161,7 +159,7 @@
                     </div>
                 </div>
                 <div class="flex flex-col flex-grow p-4 overflow-y-auto">
-                    <nav class="flex-1 space-y-2">
+                    <nav class="flex-1 space-y-2" id="sidebar">
                         <a href="#" id="nav-discover" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
                             <i class="fas fa-compass mr-3"></i>
                             Discover
@@ -169,10 +167,6 @@
                         <a href="#" id="nav-feed" class="flex items-center px-4 py-3 text-sm font-medium text-white bg-blue-500 rounded-lg">
                             <i class="fas fa-home mr-3"></i>
                             Feed
-                        </a>
-                        <a href="#" id="nav-likes" class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 opacity-50 cursor-not-allowed rounded-lg" tabindex="-1" aria-disabled="true">
-                            <i class="fas fa-heart mr-3"></i>
-                            Likes
                         </a>
                     </nav>
                 </div>
