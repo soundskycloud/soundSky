@@ -10,19 +10,22 @@
 🔥 Buggy & Experimental <br>
 
 ##### Features
-- Infraless: exists on top of bsky.social auth & blob storage
+- Infraless: exists on top of [bsky.social](https://bsky.social) auth & blob storage
 - Supports Upload, Post & Playback of _(legal)_ MP3 files 
 - Discovers Audio content with special tag `#soundskyaudio`
 - URL parameters for linking to `artist` and `post`
 
 ##### Limitations
-- Currently only works with `bsky.social` accounts
-- Custom PDS support is tricky. Contributors wanted!
+- Account
+  - Currently only works with `bsky.social` accounts
+  - Custom PDS support is tricky. Contributors wanted!
+- Audio Formats
+- Temporary limits to `mp3` files to avoid abusing bsky storage
 
 
 ## Live Demo
 <a href="https://soundsky.cloud">
-  <img src="https://github.com/user-attachments/assets/5883bb43-d087-45ad-8a31-87e6ef0162b4" width="100%" >
+  <img src="https://github.com/user-attachments/assets/e0642e37-58b8-4c49-9499-3e79b80116fa" width="100%" >
 </a>
 
 
