@@ -203,10 +203,25 @@
                             <i class="fas fa-compass"></i>
                         </a>
                     </nav>
-                    <!-- Upload, Logout, and Volume will be injected here by JS -->
                     <!-- Theme toggle -->
                     <button id="theme-toggle" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none" title="Toggle light/dark mode">
                         <i id="theme-toggle-icon" class="fas fa-moon"></i>
+                    </button>
+                    <!-- Upload Button -->
+                    <button id="upload-btn" class="ml-2 px-3 py-1 text-xs text-blue-600 rounded hover:bg-blue-50 flex items-center">
+                        <i class="fas fa-upload mr-2"></i>
+                        <span class="hidden sm:inline">Upload</span>
+                    </button>
+                    <!-- Volume Button and Slider -->
+                    <div class="relative flex items-center">
+                        <button id="volume-btn" class="ml-2 px-2 py-1 text-xs text-gray-600 rounded hover:bg-gray-100 flex items-center" title="Volume">
+                            <i class="fas fa-volume-high"></i>
+                        </button>
+                        <input id="volume-slider" type="range" min="0" max="1" step="0.01" class="absolute left-1/2 -translate-x-1/2 w-8 h-32 bg-gray-200 rounded-lg appearance-none cursor-pointer hidden z-50 volume-slider" style="top:100%;width:12px;bottom:auto;display:none;margin-top:0.5rem;writing-mode:vertical-lr;transform:translateX(-50%) rotate(180deg);" />
+                    </div>
+                    <!-- Logout Button -->
+                    <button id="logout-btn" class="ml-2 px-3 py-1 text-xs text-gray-600 rounded hover:bg-gray-100 flex items-center" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
                     </button>
                     <!-- User avatar -->
                     <button class="flex items-center text-sm rounded-full focus:outline-none">
