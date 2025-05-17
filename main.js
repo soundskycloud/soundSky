@@ -152,104 +152,6 @@ loginBtn.addEventListener('click', async () => {
     }
 });
 
-// Add logout button logic
-const topNav = document.querySelector('.flex.items-center.space-x-4') || document.getElementById('top-nav-actions');
-if (topNav) {
-    // Upload button
-    const uploadBtn = document.createElement('button');
-    uploadBtn.textContent = 'Upload';
-    uploadBtn.className = 'ml-2 px-3 py-1 text-xs text-blue-600 rounded hover:bg-blue-50';
-    uploadBtn.onclick = () => {
-        const uploadForm = document.getElementById('create-audio-post');
-        // Only toggle if not in single post mode
-        const postParam = typeof getPostParamFromUrl === 'function' ? getPostParamFromUrl() : null;
-        if (uploadForm && !postParam) {
-            if (uploadForm.style.display === 'none' || uploadForm.style.display === '') {
-                uploadForm.style.display = 'block';
-            } else {
-                uploadForm.style.display = 'none';
-            }
-        }
-    };
-    topNav.appendChild(uploadBtn);
-
-    const logoutBtn = document.createElement('button');
-    // logoutBtn.textContent = 'Logout';
-    const iconLogout = document.createElement('i');
-    iconLogout.className = 'fas fa-sign-out-alt'; // Font Awesome class for "logout" icon
-    logoutBtn.appendChild(iconLogout);
-    logoutBtn.className = 'ml-2 px-3 py-1 text-xs text-gray-600 rounded hover:bg-gray-100';
-    logoutBtn.onclick = () => {
-        localStorage.removeItem('bskySession');
-        loginForm.style.display = 'flex';
-        window.location.reload();
-    };
-    topNav.appendChild(logoutBtn);
-
-    // Add volume button and slider to the top bar
-    // Volume button and slider container
-    const volumeContainer = document.createElement('div');
-    volumeContainer.className = 'relative flex items-center';
-    // Volume button
-    const volumeBtn = document.createElement('button');
-    const iconVolume = document.createElement('i');
-    iconVolume.className = 'fas fa-volume-high'; // Font Awesome class for "logout" icon
-    volumeBtn.appendChild(iconVolume);
-    // volumeBtn.innerHTML = `<svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M3 8v4h4l5 5V3L7 8H3z" fill="currentColor"/></svg>`;
-    volumeBtn.className = 'ml-2 px-2 py-1 text-xs text-gray-600 rounded hover:bg-gray-100';
-    // Volume slider (vertical, hidden by default)
-    const volumeSlider = document.createElement('input');
-    volumeSlider.type = 'range';
-    volumeSlider.min = '0';
-    volumeSlider.max = '1';
-    volumeSlider.step = '0.01';
-    volumeSlider.className = 'absolute left-1/2 -translate-x-1/2 w-8 h-32 bg-gray-200 rounded-lg appearance-none cursor-pointer hidden z-50 volume-slider';
-    volumeSlider.style.top = '100%';
-    volumeSlider.style.width = '12px';
-    volumeSlider.style.bottom = 'auto';
-    volumeSlider.style.display = 'none';
-    volumeSlider.style.marginTop = '0.5rem';
-    volumeSlider.style.writingMode = 'vertical-lr';
-    volumeSlider.style.transform = 'translateX(-50%) rotate(180deg)';
-    // Set initial volume from localStorage or default
-    let globalVolume = 1.0;
-    if (localStorage.getItem('soundskyVolume')) {
-        globalVolume = parseFloat(localStorage.getItem('soundskyVolume'));
-        if (isNaN(globalVolume)) globalVolume = 1.0;
-    }
-    volumeSlider.value = globalVolume;
-    // Show/hide slider on button click
-    volumeBtn.onclick = (e) => {
-        e.stopPropagation();
-        volumeSlider.classList.toggle('hidden');
-        if (volumeSlider.style.display === "none") {
-          volumeSlider.style.display = "block";
-        } else {
-          volumeSlider.style.display = "none";
-        }
-    };
-    // Hide slider when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!volumeContainer.contains(e.target)) {
-            volumeSlider.classList.add('hidden');
-        }
-    });
-    // Update all wavesurfer instances on slider change
-    volumeSlider.oninput = () => {
-        globalVolume = parseFloat(volumeSlider.value);
-        localStorage.setItem('soundskyVolume', globalVolume);
-        if (window.soundskyWavesurfers) {
-            Object.values(window.soundskyWavesurfers).forEach(ws => {
-                if (ws && ws.setVolume) ws.setVolume(globalVolume);
-            });
-        }
-    };
-    // Add to topNav
-    volumeContainer.appendChild(volumeBtn);
-    volumeContainer.appendChild(volumeSlider);
-    topNav.appendChild(volumeContainer);
-}
-
 async function setCurrentUserAvatar() {
     try {
         const profile = await agent.getProfile({ actor: agent.session.did });
@@ -1963,4 +1865,68 @@ async function incrementCount(namespace, key) {
     const data = await response.json();
     console.log('Increment:', namespace, key, data.value);
     return data.value;
+}
+
+// Add topbar button logic for static HTML buttons
+const uploadBtn = document.getElementById('upload-btn');
+if (uploadBtn) {
+    uploadBtn.onclick = () => {
+        const uploadForm = document.getElementById('create-audio-post');
+        // Only toggle if not in single post mode
+        const postParam = typeof getPostParamFromUrl === 'function' ? getPostParamFromUrl() : null;
+        if (uploadForm && !postParam) {
+            if (uploadForm.style.display === 'none' || uploadForm.style.display === '') {
+                uploadForm.style.display = 'block';
+            } else {
+                uploadForm.style.display = 'none';
+            }
+        }
+    };
+}
+const logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) {
+    logoutBtn.onclick = () => {
+        localStorage.removeItem('bskySession');
+        loginForm.style.display = 'flex';
+        window.location.reload();
+    };
+}
+const volumeBtn = document.getElementById('volume-btn');
+const volumeSlider = document.getElementById('volume-slider');
+if (volumeBtn && volumeSlider) {
+    // Set initial volume from localStorage or default
+    let globalVolume = 1.0;
+    if (localStorage.getItem('soundskyVolume')) {
+        globalVolume = parseFloat(localStorage.getItem('soundskyVolume'));
+        if (isNaN(globalVolume)) globalVolume = 1.0;
+    }
+    volumeSlider.value = globalVolume;
+    // Show/hide slider on button click
+    volumeBtn.onclick = (e) => {
+        e.stopPropagation();
+        volumeSlider.classList.toggle('hidden');
+        if (volumeSlider.style.display === "none") {
+            volumeSlider.style.display = "block";
+        } else {
+            volumeSlider.style.display = "none";
+        }
+    };
+    // Hide slider when clicking outside
+    document.addEventListener('click', (e) => {
+        const volumeContainer = volumeBtn.parentElement;
+        if (volumeContainer && !volumeContainer.contains(e.target)) {
+            volumeSlider.classList.add('hidden');
+            volumeSlider.style.display = 'none';
+        }
+    });
+    // Update all wavesurfer instances on slider change
+    volumeSlider.oninput = () => {
+        globalVolume = parseFloat(volumeSlider.value);
+        localStorage.setItem('soundskyVolume', globalVolume);
+        if (window.soundskyWavesurfers) {
+            Object.values(window.soundskyWavesurfers).forEach(ws => {
+                if (ws && ws.setVolume) ws.setVolume(globalVolume);
+            });
+        }
+    };
 }
