@@ -636,7 +636,7 @@ if (audioPostForm && !document.getElementById('artwork-file')) {
     artworkLabel.htmlFor = 'artwork-file';
     artworkLabel.className = audioFileLabel ? audioFileLabel.className : 'cursor-pointer px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100';
     artworkLabel.style.marginLeft = '0.5rem';
-    artworkLabel.innerHTML = '<i class="fa fa-image mr-1"></i>Choose Artwork...';
+    artworkLabel.innerHTML = '<i class="fa fa-image mr-1"></i><span class="text-sm text-gray-500">Choose Artwork...</span>';
     // File name display
     const artworkFileName = document.createElement('span');
     artworkFileName.id = 'artwork-file-name';
