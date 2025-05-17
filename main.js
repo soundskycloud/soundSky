@@ -1055,7 +1055,9 @@ async function renderSinglePostView(postUri) {
             };
         });
     }, 0);
-    // Close button
+    
+    /*
+    // Close button (obsoleted)
     document.getElementById('close-single-post').onclick = () => {
         // Stop and destroy single post WaveSurfer instance
         if (window.soundskyWavesurfers && window.soundskyWavesurfers[audioWaveformId]) {
@@ -1068,6 +1070,7 @@ async function renderSinglePostView(postUri) {
         clearAllParamsInUrl();
         fetchSoundskyFeed();
     };
+    */
 }
 
 // --- Add click handler to each post in the feed ---
