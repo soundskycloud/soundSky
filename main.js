@@ -126,7 +126,6 @@ loginBtn.addEventListener('click', async () => {
     loginBtn.textContent = 'Logging in...';
     try {
         // Save PDS to localStorage
-        console.log('DEBUG SAVE PDS', pds);
         localStorage.setItem('bskyPds', pds);
         // Create agent with selected PDS
         agent = new BskyAgent({ service: pds });
@@ -193,6 +192,7 @@ const navDiscover = document.getElementById('nav-discover');
 const navLikes = document.getElementById('nav-likes');
 if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
 if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
+
 /*
 if (navLikes) navLikes.onclick = (e) => {
     e.preventDefault();
@@ -1050,6 +1050,20 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     let shareBtnHtml = `<button class="share-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-blue-500" data-shareurl="${shareUrl}" title="Copy embed link">
         <i class="fas fa-share"></i>
       </button>`;
+    // --- Debug button (bug icon, opens atproto-browser.dev in new tab) ---
+    let debugBtnHtml = '';
+    try {
+        const uriParts = String(post.uri).replace('at://', '').split('/');
+        if (uriParts.length === 3) {
+            const did = uriParts[0];
+            const collection = uriParts[1];
+            const rkey = uriParts[2];
+            if (collection === 'app.bsky.feed.post') {
+                const debugUrl = `https://www.atproto-browser.dev/at/${did}/app.bsky.feed.post/${rkey}`;
+                debugBtnHtml = `<a href="${debugUrl}" target="_blank" rel="noopener noreferrer" class="debug-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-amber-500" title="Debug post in atproto-browser.dev"><i class="fas fa-bug"></i></a>`;
+            }
+        }
+    } catch {}
     // Comment UI IDs
     const commentSectionId = `comments-${post.cid}`;
     const commentFormId = `comment-form-${post.cid}`;
@@ -1186,6 +1200,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                             ${likeBtnHtml}
                             ${repostBtnHtml}
                             ${shareBtnHtml}
+                            ${debugBtnHtml}
                         </div>
                         <div class='mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
                             <div class='flex items-center gap-2 mb-2'>
