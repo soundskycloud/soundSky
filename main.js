@@ -554,6 +554,7 @@ if (audioPostForm) {
 
             // If artwork is present, upload to Imgur and get the URL
             let artworkUrl = null;
+            let soundskyImgTag = null;
             if (artworkFile) {
                 // Only allow image types
                 if (!['image/png', 'image/jpeg', 'image/gif'].includes(artworkFile.type)) {
@@ -575,21 +576,13 @@ if (audioPostForm) {
                     throw new Error('Failed to upload artwork to Imgur.');
                 }
                 artworkUrl = imgurData.data.link;
-                // Add the image URL to the post text (on a new line)
-                text = text ? (text + '\n' + artworkUrl) : artworkUrl;
-                // Add a richtext facet for the image URL
-                facets.push({
-                    index: {
-                        byteStart: text.lastIndexOf(artworkUrl),
-                        byteEnd: text.lastIndexOf(artworkUrl) + artworkUrl.length,
-                    },
-                    features: [
-                        {
-                            $type: 'app.bsky.richtext.facet#link',
-                            uri: artworkUrl,
-                        },
-                    ],
-                });
+                // Extract Imgur ID and add as tag
+                const match = artworkUrl.match(/imgur\.com\/([a-zA-Z0-9]+)\.(png|jpg|jpeg|gif)/);
+                if (match && match[1]) {
+                    soundskyImgTag = `soundskyimg=${match[1]}`;
+                }
+                // Do NOT add the image URL to the post text
+                // Do NOT add a richtext facet for the image URL
             }
 
             if (file) {
@@ -608,7 +601,10 @@ if (audioPostForm) {
                 throw new Error('Please select an audio file or artwork image.');
             }
 
-            const postRes = await agent.post({ text, embed, tags: ['soundskyaudio'], facets: facets.length ? facets : undefined });
+            // Compose tags array
+            const tags = ['soundskyaudio'];
+            if (soundskyImgTag) tags.push(soundskyImgTag);
+            const postRes = await agent.post({ text, embed, tags, facets: facets.length ? facets : undefined });
             audioPostStatus.textContent = 'Posted!';
             audioPostForm.reset();
             const uploadForm = document.getElementById('create-audio-post');
@@ -1049,45 +1045,54 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     let artworkUrl = '';
     let embed = post.record && post.record.embed;
     let images = [];
-    // Debug: log the post object when scanning for images
-    // console.log('DEBUG: renderPostCard post object:', post);
-    // Check for recordWithMedia (audio+image)
-    if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
-        images = embed.media.images;
-    } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
-        images = embed.images;
-    }
-    // New: Check for image links in post text facets
+    // Always define facets before use
     const facets = post.record && post.record.facets;
-    if (facets && Array.isArray(facets)) {
-        for (const facet of facets) {
-            if (facet.features && Array.isArray(facet.features)) {
-                for (const feature of facet.features) {
-                    if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
-                        // Only show if it's a direct image link
-                        if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
-                            artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
-                            artworkUrl = `<img src="${feature.uri}" style="max-height: 48px;"/>`;
+    // Check for soundskyimg tag
+    const tags = post.record && post.record.tags;
+    let soundskyImgId = null;
+    if (tags && Array.isArray(tags)) {
+        for (const tag of tags) {
+            if (typeof tag === 'string' && tag.startsWith('soundskyimg=')) {
+                soundskyImgId = tag.split('=')[1];
+                break;
+            }
+        }
+    }
+    if (soundskyImgId) {
+        artworkUrl = `<img src="https://i.imgur.com/${soundskyImgId}.png" style="max-height: 48px;"/>`;
+        artworkHtml = `<div class=\"mb-2\"><img src=\"https://i.imgur.com/${soundskyImgId}.png\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+    } else {
+        // Backwards compatibility: check for images in embed or facets
+        if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+            images = embed.media.images;
+        } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+            images = embed.images;
+        }
+        if (facets && Array.isArray(facets)) {
+            for (const facet of facets) {
+                if (facet.features && Array.isArray(facet.features)) {
+                    for (const feature of facet.features) {
+                        if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
+                            if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
+                                artworkHtml += `<div class=\"mb-2\"><img src=\"${feature.uri}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+                                artworkUrl = `<img src="${feature.uri}" style="max-height: 48px;"/>`;
+                            }
                         }
                     }
                 }
             }
         }
-    }
-    if (images.length > 0) {
-        // Only show the first image for now
-        const img = images[0];
-        // Get blob URL for image
-        let imgUrl = '';
-        if (img.image && img.image.ref) {
-            // Use the same blob fetch logic as audio
-            const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
-            const userDid = user.did;
-            // Synchronous HTML, so we use the bsky blob endpoint directly
-            imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+        if (images.length > 0) {
+            const img = images[0];
+            let imgUrl = '';
+            if (img.image && img.image.ref) {
+                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                const userDid = user.did;
+                imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+            }
+            artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+            artworkUrl = `<img src="${imgUrl}"/>`;
         }
-        artworkHtml = `<div class=\"mb-2\"><img src=\"${imgUrl}\" alt=\"Artwork\" class=\"max-h-64 rounded-lg object-contain mx-auto\" style=\"max-width:100%;background:#f3f4f6;\" loading=\"lazy\"></div>`;
-        artworkUrl = `<img src="${imgUrl}"/>`;
     }
 
     // Remove image links from displayed post text
