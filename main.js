@@ -1836,7 +1836,7 @@ if (uploadBtn) {
         if (!postParam) {
             if (!artistParam) {
                 canShow = true; // feed/discover
-            } else if (agent && agent.session && agent.session.did && artistParam === agent.session.did) {
+            } else if (agent && agent.session && agent.session.did && artistParam === agent.session.handle) {
                 canShow = true; // own artist page
             }
         }
