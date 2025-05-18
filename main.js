@@ -878,57 +878,36 @@ async function renderArtistPage(did) {
         tracksHtml = `<div class='text-center text-gray-400 py-8'>No tracks yet.</div>`;
     } else {
         let html = '';
-        const wavesurferInitQueue = [];
         for (const item of audioPosts) {
             const post = item.post || item;
             const user = post.author;
-            const text = post.record.text || '';
-            const did = user.did;
-            let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
-            const displayName = user.displayName || user.handle || 'Unknown';
-            const time = formatRelativeTime(post.indexedAt);
             let audioHtml = '';
-            let audioBlobUrl = null; // <-- Ensure declared at the top of the loop
             let audioWaveformId = `waveform-${post.cid}`;
             let fileEmbed = null;
             const embed = post.record && post.record.embed;
             if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
             else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+            // Use lazy loading: only render play button and placeholder
             if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-                const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-                const mimeType = fileEmbed.file.mimeType;
-                try {
-                    audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
-                } catch (e) {
-                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
-                }
-                if (audioBlobUrl && audioWaveformId) {
-                    audioHtml = `
-                      <div class="flex items-center gap-2 mt-3 audioplayerbox">
-                        <!--IMG-FEED-->
-                        <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
-                          <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
-                            <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
-                            <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
-                          </svg>
-                        </button>
-                        <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
-                          <div class="wavesurfer-time">0:00</div>
-                          <div class="wavesurfer-duration">0:00</div>
-                          <div class="wavesurfer-hover"></div>
-                        </div>
-                      </div>
-                    `;
-                    wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
-                }
+                audioHtml = '';
             }
-            html += renderPostCard({ post, user, audioHtml });
+            html += renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId } });
         }
         tracksHtml = html;
-        // After rendering, initialize WaveSurfer instances
+        // After rendering, set up lazy loader for each
         setTimeout(() => {
-            for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
-                initWaveSurfer(audioWaveformId, audioBlobUrl, fileEmbed.file.size);
+            for (const item of audioPosts) {
+                const post = item.post || item;
+                const user = post.author;
+                let audioWaveformId = `waveform-${post.cid}`;
+                let fileEmbed = null;
+                const embed = post.record && post.record.embed;
+                if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+                    const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+                    setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
+                }
             }
         }, 0);
     }
