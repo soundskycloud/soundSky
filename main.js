@@ -617,6 +617,33 @@ if (audioPostForm) {
             // Compose tags array
             const tags = ['soundskyaudio'];
             if (soundskyImgTag) tags.push(soundskyImgTag);
+
+            // --- Add link to post in facets links if soundskyImgTag is present ---
+            if (soundskyImgTag) {
+                const imgurId = soundskyImgTag.replace('soundskyimg=', '');
+                const linkUrl = `https://soundsky.cloud/?q=${imgurId}`;
+                // Always append "\n\nsoundSky" and link that word
+                const linkText = '\n\nsoundSky';
+                if (!text.endsWith(linkText)) text += linkText;
+                // Find byteStart/byteEnd for 'soundSky'
+                const encoder = new TextEncoder();
+                const textBytes = encoder.encode(text);
+                // Find the byteStart of 'soundSky' (last occurrence)
+                const soundSkyIdx = text.lastIndexOf('soundSky');
+                // Compute byteStart by encoding up to that index
+                const byteStart = encoder.encode(text.slice(0, soundSkyIdx)).length;
+                const byteEnd = byteStart + encoder.encode('soundSky').length;
+                facets.push({
+                    index: { byteStart, byteEnd },
+                    features: [
+                        {
+                            $type: 'app.bsky.richtext.facet#link',
+                            uri: linkUrl
+                        }
+                    ]
+                });
+            }
+
             const postRes = await agent.post({ text, embed, tags, facets: facets.length ? facets : undefined });
             audioPostStatus.textContent = 'Posted!';
             audioPostForm.reset();
@@ -857,10 +884,10 @@ async function renderArtistPage(did) {
         const res = await agent.getProfile({ actor: did });
         profile = res.data;
     } catch (e) {
-        // Redirect to homepage
+         // Redirect to homepage
         const redirectUrl = window.location.origin;
         window.location.href = redirectUrl;
-        // Temporary message
+        // old message
         container.innerHTML = `<div class='text-red-500'>Failed to load artist profile.</div>`;
         return;
     }
@@ -1041,7 +1068,11 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
     const displayName = user.displayName || user.handle || 'Unknown';
     const time = formatRelativeTime(post.indexedAt);
-    const text = post.record.text || '';
+    // --- Strip trailing \n\nsoundSky from text for display ---
+    let text = post.record.text || '';
+    if (text.endsWith('\n\nsoundSky')) {
+        text = text.slice(0, -'\n\nsoundSky'.length);
+    }
     // Like, repost, delete, follow buttons
     let deleteBtnHtml = '';
     if (agent.session && agent.session.did === user.did) {
@@ -1147,6 +1178,8 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
 
     // Remove image links from displayed post text
     let displayText = text;
+    // Use the already declared 'facets' variable
+    // const facets = post.record && post.record.facets;
     if (facets && Array.isArray(facets)) {
         for (const facet of facets) {
             if (facet.features && Array.isArray(facet.features)) {
@@ -1663,7 +1696,7 @@ feedContainer.addEventListener('click', async function(e) {
                 shareBtn.title = 'Copy embed link';
                 shareBtn.classList.remove('text-blue-500');
             }, 1200);
-        window.open(window.location.origin + url, '_blank');
+            window.open(window.location.origin + url, '_blank');
         });
     }
 });
@@ -1850,7 +1883,7 @@ if (uploadBtn) {
         if (!postParam) {
             if (!artistParam) {
                 canShow = true; // feed/discover
-            } else if (agent && agent.session && agent.session.did && artistParam === agent.session.handle) {
+            } else if (agent && agent.session && agent.session.handle && artistParam === agent.session.handle) {
                 canShow = true; // own artist page
             }
         }
