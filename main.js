@@ -1806,9 +1806,17 @@ const uploadBtn = document.getElementById('upload-btn');
 if (uploadBtn) {
     uploadBtn.onclick = () => {
         const uploadForm = document.getElementById('create-audio-post');
-        // Only toggle if not in single post mode
         const postParam = typeof getPostParamFromUrl === 'function' ? getPostParamFromUrl() : null;
-        if (uploadForm && !postParam) {
+        const artistParam = typeof getArtistParamFromUrl === 'function' ? getArtistParamFromUrl() : null;
+        let canShow = false;
+        if (!postParam) {
+            if (!artistParam) {
+                canShow = true; // feed/discover
+            } else if (agent && agent.session && agent.session.did && artistParam === agent.session.did) {
+                canShow = true; // own artist page
+            }
+        }
+        if (uploadForm && canShow) {
             if (uploadForm.style.display === 'none' || uploadForm.style.display === '') {
                 uploadForm.style.display = 'block';
             } else {
