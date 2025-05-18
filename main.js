@@ -1769,3 +1769,28 @@ if (!document.getElementById('soundsky-waveform-placeholder-style')) {
     `;
     document.head.appendChild(style);
 }
+
+// After rendering artist page, add click handlers to post titles to enable single-post navigation
+function addArtistPagePostTitleHandlers() {
+    setTimeout(() => {
+        document.querySelectorAll('#artist-page-content .post-title-link').forEach(title => {
+            if (!title._soundskyHandlerAttached) {
+                title.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const postUri = title.getAttribute('data-post-uri');
+                    if (postUri) {
+                        setPostParamInUrl(postUri);
+                        renderSinglePostView(postUri);
+                    }
+                });
+                title._soundskyHandlerAttached = true;
+            }
+        });
+    }, 0);
+}
+// After rendering artist page, call the handler
+const origRenderArtistPage = renderArtistPage;
+renderArtistPage = async function(...args) {
+    await origRenderArtistPage.apply(this, args);
+    addArtistPagePostTitleHandlers();
+};
