@@ -350,7 +350,7 @@
           try {
             var session = localStorage.getItem('bskySession');
             if (session) {
-              var did = JSON.parse(session).handle;
+              var did = JSON.parse(session).handle || JSON.parse(session).did;
               if (did) {
                 window.location.href = '/?artist=' + encodeURIComponent(did);
                 return;
