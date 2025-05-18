@@ -680,17 +680,25 @@ function clearAllParamsInUrl() {
 async function renderSinglePostView(postUri) {
     destroyAllWaveSurfers();
     feedContainer.style.display = '';
-    feedLoading.classList.add('hidden');
+    feedLoading.classList.remove('hidden'); // Show loading indicator
+    // Ensure feedLoading is visible by appending it to feedContainer
+    if (!feedContainer.contains(feedLoading)) {
+        feedContainer.appendChild(feedLoading);
+    }
     const uploadForm = document.getElementById('create-audio-post');
     if (uploadForm) uploadForm.style.display = 'none';
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
     feedContainer.innerHTML = `<div id='single-post-content'></div>`;
+    if (!feedContainer.contains(feedLoading)) {
+        feedContainer.appendChild(feedLoading);
+    }
     let postData;
     try {
         const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
         postData = threadRes.data.thread && threadRes.data.thread.post ? threadRes.data.thread : threadRes.data.thread;
     } catch (err) {
         document.getElementById('single-post-content').innerHTML = `<div class='text-red-500'>Failed to load post.</div>`;
+        feedLoading.classList.add('hidden'); // Hide loading on error
         return;
     }
     const post = postData.post || postData;
@@ -756,12 +764,13 @@ async function renderSinglePostView(postUri) {
         }
     }
     document.getElementById('single-post-content').innerHTML = `
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-8 mb-8">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-1 mb-8">
             <div class="p-4">
                 ${renderPostCard({ post, user, audioHtml })}
             </div>
         </div>
     `;
+    feedLoading.classList.add('hidden'); // Hide loading after render
     // Init WaveSurfer immediately if audio is present and not large
     if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/') && !isLargeFile && audioBlobUrl && audioWaveformId) {
         setTimeout(() => {
