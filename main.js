@@ -203,11 +203,31 @@ if (navLikes) navLikes.onclick = (e) => {
 
 // --- Utility: Fetch audio blob URL with CORS fallback ---
 async function fetchAudioBlobUrl(userDid, blobRef) {
-    const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
-    let resp = await fetch(blobUrl);
+    // Use the current PDS for audio blobs if not default
+    let baseUrl = 'https://bsky.social';
+    try {
+        const currentPds = typeof getCurrentPdsUrl === 'function' ? getCurrentPdsUrl() : null;
+        if (currentPds && typeof currentPds === 'string' && currentPds !== 'https://bsky.social') {
+            baseUrl = currentPds.replace(/\/$/, '');
+        }
+    } catch (e) {
+        // fallback to default
+    }
+    const blobUrl = `${baseUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+    let resp;
+    try {
+        resp = await fetch(blobUrl);
+    } catch (e) {
+        resp = { ok: false };
+    }
     if (!resp.ok) {
+        // fallback to CORS proxy
         const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
-        resp = await fetch(corsProxyUrl);
+        try {
+            resp = await fetch(corsProxyUrl);
+        } catch (e) {
+            resp = { ok: false };
+        }
     }
     if (!resp.ok) throw new Error('Blob fetch failed');
     const audioBlob = await resp.blob();
@@ -247,93 +267,46 @@ function attachPostTitleLinkHandlers() {
 
 // Helper: progressively append a single audio post card
 let _soundskyFirstCardAppended = false;
+// --- Patch appendAudioPostCard to enforce strict lazy loading ---
 async function appendAudioPostCard(audioPost, feedGen) {
     // If feed loading was cancelled or feedGen is stale, do not append further cards
     if (_soundskyFeedCancelled || feedGen !== _soundskyFeedGeneration) return;
     const post = audioPost.post || audioPost;
     const user = post.author;
     let audioHtml = '';
-    let audioBlobUrl = null;
     let audioWaveformId = `waveform-${post.cid}`;
     let fileEmbed = null;
     const embed = post.record && post.record.embed;
     if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
     else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-
-    // --- Artwork logic (copied from renderPostCard) ---
-    let artworkUrl = '';
-    let images = [];
-    if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
-        images = embed.media.images;
-    } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
-        images = embed.images;
-    }
-    const facets = post.record && post.record.facets;
-    if (facets && Array.isArray(facets)) {
-        for (const facet of facets) {
-            if (facet.features && Array.isArray(facet.features)) {
-                for (const feature of facet.features) {
-                    if (feature.$type === 'app.bsky.richtext.facet#link' && feature.uri) {
-                        if (feature.uri.match(/\.(png|jpe?g|gif)$/i)) {
-                            artworkUrl = `<img src=\"${feature.uri}\" style=\"max-height: 48px;\"/>`;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if (images.length > 0) {
-        const img = images[0];
-        let imgUrl = '';
-        if (img.image && img.image.ref) {
-            const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
-            const userDid = user.did;
-            imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
-        }
-        artworkUrl = `<img src=\"${imgUrl}\"/>`;
-    }
-
     // --- Audio HTML ---
+    // Do NOT fetch or render waveform or audio blob here. Only render play button and placeholder.
     if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-        try {
-            audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
-        } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
-        }
-        if (audioBlobUrl && audioWaveformId) {
-            audioHtml = `
-              <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">
-                <!--IMG-FEED-->
-                <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${audioWaveformId}\">\n                  <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                    <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                    <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n                  </svg>\n                </button>\n                <div id=\"${audioWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative\">\n                  <div class=\"wavesurfer-time\">0:00</div>\n                  <div class=\"wavesurfer-duration\">0:00</div>\n                  <div class=\"wavesurfer-hover\"></div>\n                </div>\n              </div>\n            `;
-            // Inject artwork
-            audioHtml = audioHtml.replace('<!--IMG-FEED-->', artworkUrl);
-        }
+        audioHtml = '';
     }
-
     // Check again before appending (in case of async delay)
     if (feedGen !== _soundskyFeedGeneration) return;
-    const cardHtml = renderPostCard({ post, user, audioHtml });
+    const cardHtml = renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId } });
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
     feedContainer.appendChild(tempDiv.firstElementChild);
-
     // Hide feedLoading as soon as the first card is appended
     if (!_soundskyFirstCardAppended) {
         feedLoading.classList.add('hidden');
         _soundskyFirstCardAppended = true;
     }
-
-    // Initialize WaveSurfer for this card
-    if (audioBlobUrl && audioWaveformId) {
-        setTimeout(() => initWaveSurfer(audioWaveformId, audioBlobUrl), 0);
-    }
     // Attach post-title-link click handler for this card
     attachPostTitleLinkHandlers();
+    // After appending card, set up lazy loader (but do NOT fetch or init anything yet)
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef), 0);
+    }
 }
 
 // Update fetchSoundskyFeed to render each card as soon as it's ready
 async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
+    destroyAllWaveSurfers();
     feedLoading.classList.remove('hidden');
     if (!append) {
         feedContainer.innerHTML = '';
@@ -707,7 +680,9 @@ function clearAllParamsInUrl() {
     window.history.replaceState({}, '', url);
 }
 
+// --- Patch renderSinglePostView to enforce strict lazy loading ---
 async function renderSinglePostView(postUri) {
+    destroyAllWaveSurfers();
     feedContainer.style.display = '';
     feedLoading.classList.add('hidden');
     // Hide upload form in single mode
@@ -715,11 +690,6 @@ async function renderSinglePostView(postUri) {
     if (uploadForm) uploadForm.style.display = 'none';
     // Remove modal/blur logic, render in feed container
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
-    // Stop and destroy any existing WaveSurfer instances
-    if (window.soundskyWavesurfers) {
-        Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.destroy(); } catch {} });
-        window.soundskyWavesurfers = {};
-    }
     // Clear feed and render single post
     feedContainer.innerHTML = `<div id='single-post-content'></div>`;
     // Fetch post thread
@@ -734,387 +704,29 @@ async function renderSinglePostView(postUri) {
     // Render post using a modified version of the feed renderer (single post, full width)
     const post = postData.post || postData;
     const user = post.author;
-    const text = post.record.text || '';
-    const did = user.did;
-    let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
-    const displayName = user.displayName || user.handle || 'Unknown';
-    const time = formatRelativeTime(post.indexedAt);
     let audioHtml = '';
-    let audioBlobUrl = null;
     let audioWaveformId = `waveform-${post.cid}`;
     let fileEmbed = null;
     const embed = post.record && post.record.embed;
     if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
     else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+    // Do NOT fetch or render waveform or audio blob here. Only render play button and placeholder.
     if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-        const mimeType = fileEmbed.file.mimeType;
-        try {
-            audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
-        } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
-        }
-        if (audioBlobUrl && audioWaveformId) {
-            audioHtml = `<!--IMG-ARTIST-->
-              <div class="flex items-center gap-2 mt-3">
-              <!--IMG-FEED-->
-                <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
-                  <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
-                    <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
-                    <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
-                  </svg>
-                </button>
-                <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
-                  <div class="wavesurfer-time">0:00</div>
-                  <div class="wavesurfer-duration">0:00</div>
-                  <div class="wavesurfer-hover"></div>
-                </div>
-              </div>
-            `;
-        }
+        audioHtml = '';
     }
-    // Like, repost, delete, follow buttons (reuse logic)
-    let deleteBtnHtml = '';
-    if (agent.session && agent.session.did === user.did) {
-        deleteBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-post-btn" data-uri="${String(post.uri)}">Delete</button>`;
-    }
-    let followBtnHtml = '';
-    if (agent.session && agent.session.did !== user.did) {
-        const isFollowing = user.viewer && user.viewer.following;
-        if (isFollowing) {
-            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded follow-user-btn" data-did="${user.did}" data-following="true">Following</button>`;
-        } else {
-            followBtnHtml = `<button class="ml-2 px-2 py-1 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 follow-user-btn" data-did="${user.did}" data-following="false">Follow</button>`;
-        }
-    }
-    const liked = post.viewer && post.viewer.like;
-    const reposted = post.viewer && post.viewer.repost;
-    const likeCount = post.likeCount || 0;
-    const repostCount = post.repostCount || 0;
-    let likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}">
-        <i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
-    let repostBtnHtml = `<button class="repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}" data-uri="${String(post.uri)}" data-cid="${post.cid}" data-reposted="${!!reposted}" data-reposturi="${reposted ? reposted : ''}">
-        <i class="fas fa-retweet"></i><span>${repostCount}</span></button>`;
-    // Comment UI
-    const commentSectionId = `comments-${post.cid}`;
-    const commentFormId = `comment-form-${post.cid}`;
-    const commentInputId = `comment-input-${post.cid}`;
-    const commentSendId = `comment-send-${post.cid}`;
-    const currentUserAvatar = (agent.session && agent.session.did)
-        ? (document.getElementById('current-user-avatar')?.src || defaultAvatar)
-        : defaultAvatar;
-    // Render single post content in feed container
     document.getElementById('single-post-content').innerHTML = `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-8 mb-8">
             <div class="p-4">
-                ${renderPostCard({ post, user, audioHtml })}
+                ${renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId } })}
             </div>
         </div>
     `;
-    // Init WaveSurfer
-    setTimeout(() => {
-        const container = document.getElementById(audioWaveformId);
-        if (container && window.WaveSurfer && audioBlobUrl) {
-            initWaveSurfer(audioWaveformId, audioBlobUrl);
-        }
-    }, 0);
-        // Comments fetch and post logic (reuse from feed)
-        (async () => {
-            const commentSection = document.getElementById(`comments-${post.cid}`);
-            if (!commentSection) return;
-            try {
-                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                const replies = (threadRes.data.thread?.replies || []).slice(0, 5);
-                if (replies.length === 0) {
-                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                } else {
-                    commentSection.innerHTML = replies.map(reply => {
-                        const author = reply.post.author;
-                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                        const name = author.displayName || author.handle || 'Unknown';
-                        const commentText = reply.post.record.text || '';
-                        const isOwnComment = agent.session && agent.session.did === author.did;
-                        const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
-                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div>${deleteBtn}</div>`;
-                    }).join('');
-                }
-            } catch (err) {
-                commentSection.innerHTML = '<div class=\"text-red-400 text-xs\">Failed to load comments.</div>';
-            }
-        })();
-        const form = document.getElementById(`comment-form-${post.cid}`);
-        const input = document.getElementById(`comment-input-${post.cid}`);
-        // Remove the inline onsubmit handler; rely on delegated handler
-        // if (form && input) {
-        //     form.onsubmit = async (e) => { ... }
-        // }
-    // Like, repost, delete, follow, etc. event listeners (reuse from feed)
-    setTimeout(() => {
-        document.querySelectorAll('.delete-post-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                let uri = btn.getAttribute('data-uri');
-                if (typeof uri !== 'string') uri = String(uri);
-                if (window.confirm('Are you sure you want to delete this post?')) {
-                    try {
-                        const uriParts = uri.replace('at://', '').split('/');
-                        const did = uriParts[0];
-                        const collection = uriParts[1];
-                        const rkey = uriParts[2];
-                        await agent.api.com.atproto.repo.deleteRecord({
-                            repo: did,
-                            collection,
-                            rkey,
-                        });
-                        clearAllParamsInUrl();
-                        fetchSoundskyFeed();
-                    } catch (err) {
-                        alert('Failed to delete post: ' + (err.message || err));
-                    }
-                }
-            };
-        });
-        document.querySelectorAll('.like-post-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                const uri = btn.getAttribute('data-uri');
-                const cid = btn.getAttribute('data-cid');
-                const liked = btn.getAttribute('data-liked') === 'true';
-                const likeUri = btn.getAttribute('data-likeuri');
-                const countSpan = btn.querySelector('span');
-                try {
-                    if (!liked) {
-                        const likeRes = await agent.like(uri, cid);
-                        btn.setAttribute('data-liked', 'true');
-                        btn.setAttribute('data-likeuri', likeRes && likeRes.uri ? likeRes.uri : '');
-                        btn.classList.remove('text-gray-500', 'hover:text-blue-500');
-                        btn.classList.add('text-blue-500');
-                        btn.querySelector('i').classList.remove('far');
-                        btn.querySelector('i').classList.add('fas');
-                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                    } else {
-                        if (likeUri) {
-                            await agent.deleteLike(likeUri);
-                            btn.setAttribute('data-liked', 'false');
-                            btn.setAttribute('data-likeuri', '');
-                            btn.classList.remove('text-blue-500');
-                            btn.classList.add('text-gray-500', 'hover:text-blue-500');
-                            btn.querySelector('i').classList.remove('fas');
-                            btn.querySelector('i').classList.add('far');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                        } else {
-                            alert('Could not find like record URI to unlike.');
-                        }
-                    }
-                } catch (err) {
-                    alert('Failed to like/unlike post: ' + (err.message || err));
-                }
-            };
-        });
-        document.querySelectorAll('.repost-post-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                const uri = btn.getAttribute('data-uri');
-                const cid = btn.getAttribute('data-cid');
-                const reposted = btn.getAttribute('data-reposted') === 'true';
-                const repostUri = btn.getAttribute('data-reposturi');
-                const countSpan = btn.querySelector('span');
-                try {
-                    if (!reposted) {
-                        await agent.repost(uri, cid);
-                        btn.setAttribute('data-reposted', 'true');
-                        btn.classList.remove('text-gray-500', 'hover:text-green-500');
-                        btn.classList.add('text-green-500');
-                        countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
-                    } else {
-                        if (repostUri) {
-                            await agent.deleteRepost(repostUri);
-                            btn.setAttribute('data-reposted', 'false');
-                            btn.classList.remove('text-green-500');
-                            btn.classList.add('text-gray-500', 'hover:text-green-500');
-                            countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
-                        } else {
-                            alert('Could not find repost record URI to unrepost.');
-                        }
-                    }
-                } catch (err) {
-                    alert('Failed to repost/unrepost post: ' + (err.message || err));
-                }
-            };
-        });
-        document.querySelectorAll('.follow-user-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                const did = btn.getAttribute('data-did');
-                btn.disabled = true;
-                btn.textContent = 'Following...';
-                try {
-                    await agent.follow(did);
-                    btn.textContent = 'Following';
-                    btn.classList.remove('text-blue-600', 'border-blue-200', 'hover:bg-blue-50');
-                    btn.classList.add('text-gray-500', 'border-gray-200');
-                } catch (err) {
-                    btn.textContent = 'Follow';
-                    btn.disabled = false;
-                    alert('Failed to follow user: ' + (err.message || err));
-                }
-            };
-        });
-    }, 0);
-    // Close button
-    /*
-    document.getElementById('close-single-post').onclick = () => {
-        // Stop and destroy single post WaveSurfer instance
-        if (window.soundskyWavesurfers && window.soundskyWavesurfers[audioWaveformId]) {
-            try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch {};
-            delete window.soundskyWavesurfers[audioWaveformId];
-        }
-        // Show upload form again
-        const uploadForm = document.getElementById('create-audio-post');
-        if (uploadForm) uploadForm.style.display = '';
-        clearAllParamsInUrl();
-        fetchSoundskyFeed();
-    };
-    */
-}
-
-// --- Add click handler to each post in the feed ---
-function addSinglePostClickHandlers() {
-    setTimeout(() => {
-        document.querySelectorAll('.post-title-link').forEach(title => {
-            title.onclick = (e) => {
-                e.preventDefault();
-                const postUri = title.getAttribute('data-post-uri');
-                if (postUri) {
-                    setPostParamInUrl(postUri);
-                    renderSinglePostView(postUri);
-                }
-            };
-        });
-    }, 0);
-}
-
-// --- On page load and popstate, check for ?post=... or ?artist=... ---
-window.addEventListener('DOMContentLoaded', async () => {
-    const postParam = getPostParamFromUrl();
-    const artistParam = getArtistParamFromUrl();
-    if (postParam) {
-        renderSinglePostView(postParam);
-    } else if (artistParam) {
-        renderArtistPage(artistParam);
+    // After rendering, set up lazy loader (but do NOT fetch or init anything yet)
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef), 0);
     }
-});
-window.addEventListener('popstate', () => {
-    const postParam = getPostParamFromUrl();
-    const artistParam = getArtistParamFromUrl();
-    if (postParam) {
-        renderSinglePostView(postParam);
-    } else if (artistParam) {
-        renderArtistPage(artistParam);
-    } else {
-        const modal = document.getElementById('single-post-modal');
-        if (modal) modal.style.display = 'none';
-        document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
-        fetchSoundskyFeed();
-    }
-});
-
-/*
-// After rendering feed, add click handlers
-const origRenderFeed = renderFeed;
-renderFeed = async function(...args) {
-    await origRenderFeed.apply(this, args);
-    addSinglePostClickHandlers();
-};
-*/
-
-// Add style for .post-title-link if not present
-if (!document.getElementById('post-title-link-style')) {
-    const style = document.createElement('style');
-    style.id = 'post-title-link-style';
-    style.textContent = `
-    .post-title-link {
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      font: inherit;
-      padding: 0;
-    }
-    .post-title-link:hover {
-      text-decoration: underline;
-    }
-    `;
-    document.head.appendChild(style);
-}
-
-// Add custom CSS for .volume-slider if not present
-if (!document.getElementById('volume-slider-style')) {
-    const style = document.createElement('style');
-    style.id = 'volume-slider-style';
-    style.textContent = `
-    input[type='range'].volume-slider {
-      background: transparent;
-      width: 1.25rem;
-      min-width: 1.25rem;
-      max-width: 1.25rem;
-      height: 8rem;
-      margin: 0;
-      padding: 0;
-      display: block;
-    }
-    input[type='range'].volume-slider::-webkit-slider-thumb {
-      width: 1rem;
-      height: 1rem;
-      background: #2563eb;
-      border-radius: 50%;
-      border: none;
-      box-shadow: 0 0 2px #0003;
-      cursor: pointer;
-      margin: 0;
-      appearance: none;
-    }
-    input[type='range'].volume-slider::-webkit-slider-runnable-track {
-      background: #e5e7eb;
-      border-radius: 0.75rem;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-    }
-    input[type='range'].volume-slider:focus {
-      outline: none;
-    }
-    input[type='range'].volume-slider::-moz-range-thumb {
-      width: 1rem;
-      height: 1rem;
-      background: #2563eb;
-      border-radius: 50%;
-      border: none;
-      box-shadow: 0 0 2px #0003;
-      cursor: pointer;
-      margin: 0;
-    }
-    input[type='range'].volume-slider::-moz-range-track {
-      background: #e5e7eb;
-      border-radius: 0.75rem;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-    }
-    input[type='range'].volume-slider::-ms-thumb {
-      width: 1rem;
-      height: 1rem;
-      background: #2563eb;
-      border-radius: 50%;
-      border: none;
-      box-shadow: 0 0 2px #0003;
-      cursor: pointer;
-      margin: 0;
-    }
-    input[type='range'].volume-slider::-ms-fill-lower,
-    input[type='range'].volume-slider::-ms-fill-upper {
-      background: #e5e7eb;
-      border-radius: 0.75rem;
-      margin: 0;
-    }
-    `;
-    document.head.appendChild(style);
+    // ... existing code for comments, buttons, etc ...
 }
 
 // --- 2. SINGLE POST: Make username clickable ---
@@ -1125,6 +737,7 @@ if (!document.getElementById('volume-slider-style')) {
 
 // --- 3. Add renderArtistPage(did) ---
 async function renderArtistPage(did) {
+    destroyAllWaveSurfers();
     // Set ?artist=... in the URL
     const url = new URL(window.location.href);
     url.searchParams.set('artist', did);
@@ -1236,6 +849,21 @@ async function renderArtistPage(did) {
         }, 0);
     }
     container.innerHTML = headerHtml + `<div class='mx-auto'>${tracksHtml}</div>`;
+
+    // After rendering, set up lazy loader for each
+    for (const item of audioPosts) {
+        const post = item.post || item;
+        const user = post.author;
+        let audioWaveformId = `waveform-${post.cid}`;
+        let fileEmbed = null;
+        const embed = post.record && post.record.embed;
+        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef), 0);
+        }
+    }
 }
 
 // --- 4. Add event delegation for username clicks ---
@@ -1433,6 +1061,33 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
      let playCounterHtmlButton = `<button class="play-counter-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-blue-500" id="${playCounterId}"><i class="fas fa-play"></i><span>...</span></button>`;
      let playCounterHtml = `<img src="https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays&readOnly=false">`;
 
+    // --- Audio player UI ---
+    // Instead of rendering the waveform by default, render only the play button and a placeholder
+    let audioPlayerHtml = '';
+    if (audioHtml) {
+        audioPlayerHtml = audioHtml;
+    } else if (options && options.lazyWaveformId) {
+        audioPlayerHtml = `
+          <div class="flex items-center gap-2 mt-3 audioplayerbox">
+            <!--IMG-FEED-->
+            <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${options.lazyWaveformId}">
+              <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
+                <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
+              </svg>
+            </button>
+            <div id="${options.lazyWaveformId}" class="wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder">
+              <div class="soundsky-placeholder-content">
+                <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
+                  <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Play to load waveform</span>
+              </div>
+            </div>
+          </div>
+        `;
+    }
+
     return `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out" data-post-uri="${String(post.uri)}">
             <div class="p-4">
@@ -1448,7 +1103,7 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
                         </div>
                         <button class="post-title-link block font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${String(post.uri)}">${displayText}</button>
                         <!-- ${artworkHtml} -->
-                        ${audioHtml.replace('<!--IMG-FEED-->',artworkUrl).replace('<!--IMG-ARTIST-->',artworkHtml)}
+                        ${audioPlayerHtml.replace('<!--IMG-FEED-->',artworkUrl).replace('<!--IMG-ARTIST-->',artworkHtml)}
                         <div class="mt-3 flex items-center space-x-4">
                             ${playCounterHtml}
                             ${likeBtnHtml}
@@ -1476,118 +1131,206 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
 
 // --- Utility: Initialize WaveSurfer instance for a given waveform ID and blob URL ---
 function initWaveSurfer(audioWaveformId, audioBlobUrl) {
-                const container = document.getElementById(audioWaveformId);
+    const container = document.getElementById(audioWaveformId);
     if (container && window.WaveSurfer && audioBlobUrl) {
+        // Destroy any existing instance for this id before creating a new one
+        if (window.soundskyWavesurfers[audioWaveformId]) {
+            try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch {}
+            delete window.soundskyWavesurfers[audioWaveformId];
+        }
         // Create canvas for gradients
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 32; canvas.height = 48;
-                    const ctx = canvas.getContext('2d');
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 48;
+        const ctx = canvas.getContext('2d');
         // SoundCloud-style waveform gradient
-                    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-                    gradient.addColorStop(0, '#656666');
-                    gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-                    gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-                    gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-                    gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-                    gradient.addColorStop(1, '#B1B1B1');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+        gradient.addColorStop(0, '#656666');
+        gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
+        gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+        gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+        gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
+        gradient.addColorStop(1, '#B1B1B1');
         // Progress gradient
-                    const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-                    progressGradient.addColorStop(0, '#EE772F');
-                    progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-                    progressGradient.addColorStop(1, '#F6B094');
+        const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+        progressGradient.addColorStop(0, '#EE772F');
+        progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
+        progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+        progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+        progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
+        progressGradient.addColorStop(1, '#F6B094');
         // Init WaveSurfer
-                    const wavesurfer = window.WaveSurfer.create({
-                        container: `#${audioWaveformId}`,
-                        waveColor: gradient,
-                        progressColor: progressGradient,
-                        height: 48,
-                        barWidth: 2,
-                        responsive: true,
-                        cursorColor: '#3b82f6',
-                        backend: 'MediaElement',
-                    });
-                    wavesurfer.load(audioBlobUrl);
+        const wavesurfer = window.WaveSurfer.create({
+            container: `#${audioWaveformId}`,
+            waveColor: gradient,
+            progressColor: progressGradient,
+            height: 48,
+            barWidth: 2,
+            responsive: true,
+            cursorColor: '#3b82f6',
+            backend: 'MediaElement',
+        });
+        wavesurfer.load(audioBlobUrl);
         // Store instance globally
-                    window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
+        window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
         // Play/pause button
-                    const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
-                    let hasCountedPlay = false;
-                    if (playBtn) {
-                        const svg = playBtn.querySelector('.wavesurfer-play-icon');
-                        playBtn.onclick = () => {
+        const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+        let hasCountedPlay = false;
+        if (playBtn) {
+            const svg = playBtn.querySelector('.wavesurfer-play-icon');
+            playBtn.onclick = () => {
                 // Pause all other players before playing this one
-                            Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                                if (!hasCountedPlay) {
-                                    // hasCountedPlay = true;
-                                    // Use 'soundskycloud' as namespace, and audioWaveformId as key
-                                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
-                                }
-                            }
-                        };
-                        wavesurfer.on('finish', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                        });
-                        wavesurfer.on('pause', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                        });
-                        wavesurfer.on('play', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                        });
-                        wavesurfer.on('click', () => {
-                          Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                // wavesurfer.pause();
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
-            });
+                Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                    if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                        ws.pause();
                     }
-                    // Time/duration overlays
-                    const timeEl = container.querySelector('.wavesurfer-time');
-                    const durationEl = container.querySelector('.wavesurfer-duration');
-                    const formatTime = (seconds) => {
-                        const minutes = Math.floor(seconds / 60);
-                        const secondsRemainder = Math.round(seconds) % 60;
-                        const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-                        return `${minutes}:${paddedSeconds}`;
-                    };
-                    wavesurfer.on('decode', (duration) => {
-                        if (durationEl) durationEl.textContent = formatTime(duration);
-                    });
-                    wavesurfer.on('timeupdate', (currentTime) => {
-                        if (timeEl) timeEl.textContent = formatTime(currentTime);
-                    });
-                    // Hover effect
-                    const hoverEl = container.querySelector('.wavesurfer-hover');
-                    container.addEventListener('pointermove', (e) => {
-                        if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
-                    });
-                    container.addEventListener('pointerenter', () => {
-                        if (hoverEl) hoverEl.style.opacity = 1;
-                    });
-                    container.addEventListener('pointerleave', () => {
-                        if (hoverEl) hoverEl.style.opacity = 0;
-                    });
+                });
+                if (wavesurfer.isPlaying()) {
+                    wavesurfer.pause();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                } else {
+                    wavesurfer.play();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                    if (!hasCountedPlay) {
+                        // hasCountedPlay = true;
+                        // Use 'soundskycloud' as namespace, and audioWaveformId as key
+                        incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
+                    }
                 }
+            };
+            wavesurfer.on('finish', () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            });
+            wavesurfer.on('pause', () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            });
+            wavesurfer.on('play', () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+            });
+            wavesurfer.on('click', () => {
+              Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                    if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                        ws.pause();
+                    }
+                });
+                if (wavesurfer.isPlaying()) {
+                    // wavesurfer.pause();
+                } else {
+                    wavesurfer.play();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                }
+        });
+        }
+        // Time/duration overlays
+        const timeEl = container.querySelector('.wavesurfer-time');
+        const durationEl = container.querySelector('.wavesurfer-duration');
+        const formatTime = (seconds) => {
+            const minutes = Math.floor(seconds / 60);
+            const secondsRemainder = Math.round(seconds) % 60;
+            const paddedSeconds = `0${secondsRemainder}`.slice(-2);
+            return `${minutes}:${paddedSeconds}`;
+        };
+        wavesurfer.on('decode', (duration) => {
+            if (durationEl) durationEl.textContent = formatTime(duration);
+        });
+        wavesurfer.on('timeupdate', (currentTime) => {
+            if (timeEl) timeEl.textContent = formatTime(currentTime);
+        });
+        // Hover effect
+        const hoverEl = container.querySelector('.wavesurfer-hover');
+        container.addEventListener('pointermove', (e) => {
+            if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
+        });
+        container.addEventListener('pointerenter', () => {
+            if (hoverEl) hoverEl.style.opacity = 1;
+        });
+        container.addEventListener('pointerleave', () => {
+            if (hoverEl) hoverEl.style.opacity = 0;
+        });
+    }
+}
+
+// --- LAZY AUDIO LOAD: Only load audio blob and WaveSurfer on play ---
+// Limit the number of active WaveSurfer instances to prevent memory leaks
+const MAX_ACTIVE_WAVESURFERS = 2;
+function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef) {
+    const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+    if (!playBtn) return;
+    const svg = playBtn.querySelector('.wavesurfer-play-icon');
+    let wavesurfer = null;
+    let audioLoaded = false;
+    let loading = false;
+    playBtn.onclick = async () => {
+        if (loading) return;
+        // If already loaded, just play/pause
+        if (audioLoaded && wavesurfer) {
+            // Pause all other players before playing this one
+            Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                    ws.pause();
+                }
+            });
+            if (wavesurfer.isPlaying()) {
+                wavesurfer.pause();
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            } else {
+                wavesurfer.play();
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
             }
+            return;
+        }
+        // Otherwise, lazy load audio and waveform ONLY NOW
+        loading = true;
+        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">...</text>`;
+        let audioBlobUrl = null;
+        try {
+            audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
+        } catch (e) {
+            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#e11d48"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">!</text>`;
+            loading = false;
+            return;
+        }
+        // Remove only the placeholder content, not the container itself
+        const container = document.getElementById(audioWaveformId);
+        if (container) {
+            const placeholder = container.querySelector('.soundsky-placeholder-content');
+            if (placeholder) {
+                try { container.removeChild(placeholder); } catch (err) { console.warn('Could not remove placeholder', err); }
+            }
+            // Ensure the container has a proper width for WaveSurfer rendering
+            container.style.width = '100%';
+            container.style.minWidth = '120px';
+            container.style.display = 'block';
+        }
+        // Defensive: destroy any existing WaveSurfer instance for this id before creating a new one
+        if (window.soundskyWavesurfers[audioWaveformId]) {
+            try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch (err) { console.error('WaveSurfer destroy error', err); }
+            delete window.soundskyWavesurfers[audioWaveformId];
+        }
+        // Now init WaveSurfer and play
+        setTimeout(() => {
+            try {
+                initWaveSurfer(audioWaveformId, audioBlobUrl);
+                wavesurfer = window.soundskyWavesurfers[audioWaveformId];
+                audioLoaded = true;
+                loading = false;
+                if (wavesurfer) {
+                    // Pause all other players before playing this one
+                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                            ws.pause();
+                        }
+                    });
+                    wavesurfer.play();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                }
+            } catch (err) {
+                console.error('WaveSurfer init error', err);
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#e11d48"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">!</text>`;
+                loading = false;
+            }
+        }, 0);
+    };
+}
 
 // --- Add event delegation for delete button (fixes icon click issues) ---
 feedContainer.addEventListener('click', async function(e) {
@@ -1929,4 +1672,42 @@ if (volumeBtn && volumeSlider) {
             });
         }
     };
+}
+
+// --- Utility: Destroy all WaveSurfer instances and clear global object ---
+function destroyAllWaveSurfers() {
+    if (window.soundskyWavesurfers) {
+        Object.values(window.soundskyWavesurfers).forEach(ws => {
+            try { ws.destroy(); } catch {}
+        });
+        window.soundskyWavesurfers = {};
+    }
+}
+
+// Add custom CSS for .soundsky-waveform-placeholder if not present
+if (!document.getElementById('soundsky-waveform-placeholder-style')) {
+    const style = document.createElement('style');
+    style.id = 'soundsky-waveform-placeholder-style';
+    style.textContent = `
+    .soundsky-waveform-placeholder {
+      background: #23272f;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      color: #b3b3b3;
+      position: relative;
+    }
+    .soundsky-placeholder-content {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      opacity: 0.85;
+      pointer-events: none;
+      user-select: none;
+    }
+    `;
+    document.head.appendChild(style);
 }
