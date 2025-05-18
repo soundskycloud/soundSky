@@ -844,7 +844,12 @@ async function renderSinglePostView(postUri) {
                         const commentText = reply.post.record.text || '';
                         const isOwnComment = agent.session && agent.session.did === author.did;
                         const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
-                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div>${deleteBtn}</div>`;
+                        // Like button for comment
+                        const liked = reply.post.viewer && reply.post.viewer.like;
+                        const likeCount = reply.post.likeCount || 0;
+                        const likeBtnHtml = `<button class="like-comment-btn flex items-center space-x-1 text-xs ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${reply.post.uri}" data-cid="${reply.post.cid}" data-liked="${!!liked}" data-likeuri="${liked ? liked : ''}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
+                        // Layout: avatar | comment+author | (spacer) | like+delete
+                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2\">${likeBtnHtml}${deleteBtn}</div></div>`;
                     }).join('');
                 }
             } catch (err) {
@@ -1699,6 +1704,41 @@ feedContainer.addEventListener('click', async function(e) {
             }, 1200);
             window.open(window.location.origin + url, '_blank');
         });
+    }
+    // Like button for comments
+    const likeCommentBtn = e.target.closest('.like-comment-btn');
+    if (likeCommentBtn && likeCommentBtn.getAttribute('data-uri')) {
+        const uri = likeCommentBtn.getAttribute('data-uri');
+        const cid = likeCommentBtn.getAttribute('data-cid');
+        const liked = likeCommentBtn.getAttribute('data-liked') === 'true';
+        const likeUri = likeCommentBtn.getAttribute('data-likeuri');
+        const countSpan = likeCommentBtn.querySelector('span');
+        try {
+            if (!liked) {
+                await agent.like(uri, cid);
+                likeCommentBtn.setAttribute('data-liked', 'true');
+                likeCommentBtn.classList.remove('text-gray-500', 'hover:text-blue-500');
+                likeCommentBtn.classList.add('text-blue-500');
+                likeCommentBtn.querySelector('i').classList.remove('far');
+                likeCommentBtn.querySelector('i').classList.add('fas');
+                countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+            } else {
+                if (likeUri) {
+                    await agent.deleteLike(likeUri);
+                    likeCommentBtn.setAttribute('data-liked', 'false');
+                    likeCommentBtn.classList.remove('text-blue-500');
+                    likeCommentBtn.classList.add('text-gray-500', 'hover:text-blue-500');
+                    likeCommentBtn.querySelector('i').classList.remove('fas');
+                    likeCommentBtn.querySelector('i').classList.add('far');
+                    countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                } else {
+                    alert('Could not find like record URI to unlike.');
+                }
+            }
+        } catch (err) {
+            alert('Failed to like/unlike comment: ' + (err.message || err));
+        }
+        return;
     }
 });
 
