@@ -754,8 +754,32 @@ async function renderSinglePostView(postUri) {
             }
         }, 0);
     }
-    // ... existing code for comments, buttons, etc ...
     // No lazy loader or placeholder in single-post mode
+    // After rendering the single post, fetch and display comments
+    if (post && post.cid) {
+        const commentSection = document.getElementById(`comments-${post.cid}`);
+        if (commentSection) {
+            try {
+                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+                const replies = (threadRes.data.thread?.replies || []);
+                if (replies.length === 0) {
+                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
+                } else {
+                    commentSection.innerHTML = replies.map(reply => {
+                        const author = reply.post.author;
+                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
+                        const name = author.displayName || author.handle || 'Unknown';
+                        const commentText = reply.post.record.text || '';
+                        const isOwnComment = agent.session && agent.session.did === author.did;
+                        const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
+                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div>${deleteBtn}</div>`;
+                    }).join('');
+                }
+            } catch (err) {
+                commentSection.innerHTML = '<div class="text-red-400 text-xs">Failed to load comments.</div>';
+            }
+        }
+    }
 }
 
 // --- 2. SINGLE POST: Make username clickable ---
