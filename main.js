@@ -849,6 +849,10 @@ async function renderArtistPage(did) {
         const res = await agent.getProfile({ actor: did });
         profile = res.data;
     } catch (e) {
+        // Redirect to homepage
+        const redirectUrl = window.location.origin;
+        window.location.href = redirectUrl;
+        // Temporary message
         container.innerHTML = `<div class='text-red-500'>Failed to load artist profile.</div>`;
         return;
     }
