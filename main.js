@@ -713,6 +713,7 @@ function clearAllParamsInUrl() {
     const url = new URL(window.location.href);
     url.searchParams.delete('post');
     url.searchParams.delete('artist');
+    url.searchParams.delete('q');
     window.history.replaceState({}, '', url);
 }
 
