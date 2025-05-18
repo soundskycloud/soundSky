@@ -1663,8 +1663,8 @@ feedContainer.addEventListener('click', async function(e) {
                 shareBtn.title = 'Copy embed link';
                 shareBtn.classList.remove('text-blue-500');
             }, 1200);
-        });
         window.open(window.location.origin + url, '_blank');
+        });
     }
 });
 
