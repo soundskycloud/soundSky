@@ -94,10 +94,13 @@ window.addEventListener('DOMContentLoaded', async () => {
             setCurrentUserAvatar();
             const postParam = getPostParamFromUrl();
             const artistParam = getArtistParamFromUrl();
+            const searchParam = getSearchParamFromUrl();
             if (postParam) {
                 renderSinglePostView(postParam);
             } else if (artistParam) {
                 renderArtistPage(artistParam);
+            } else if (searchParam) {
+                fetchSoundskyFeed({ mode: 'search', q: searchParam });
             } else {
                 setActiveNav('nav-discover');
                 fetchSoundskyFeed({ mode: 'discover' });
@@ -310,7 +313,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
 }
 
 // Update fetchSoundskyFeed to render each card as soon as it's ready
-async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
+async function fetchSoundskyFeed({ append = false, mode = 'home', q = false } = {}) {
     destroyAllWaveSurfers();
     feedLoading.classList.remove('hidden');
     if (!append) {
@@ -341,6 +344,11 @@ async function fetchSoundskyFeed({ append = false, mode = 'home' } = {}) {
                 return;
             } else if (mode === 'discover') {
                 const params = { q: '#soundskyaudio', limit: 50 };
+                if (localCursor) params.cursor = localCursor;
+                feed = await agent.api.app.bsky.feed.searchPosts(params);
+            } else if (mode == 'search' && q != false) {
+                // alias search on image id
+                const params = { q: '#soundskyimg='+q, limit: 50 };
                 if (localCursor) params.cursor = localCursor;
                 feed = await agent.api.app.bsky.feed.searchPosts(params);
             } else {
@@ -972,6 +980,11 @@ renderSinglePostView = async function(...args) {
 function getArtistParamFromUrl() {
     const url = new URL(window.location.href);
     return url.searchParams.get('artist');
+}
+
+function getSearchParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('q') || url.searchParams.get('search');
 }
 
 // Helper: format relative time
