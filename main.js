@@ -300,7 +300,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
     // After appending card, set up lazy loader (but do NOT fetch or init anything yet)
     if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
         const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef), 0);
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
     }
 }
 
@@ -681,14 +681,10 @@ async function renderSinglePostView(postUri) {
     destroyAllWaveSurfers();
     feedContainer.style.display = '';
     feedLoading.classList.add('hidden');
-    // Hide upload form in single mode
     const uploadForm = document.getElementById('create-audio-post');
     if (uploadForm) uploadForm.style.display = 'none';
-    // Remove modal/blur logic, render in feed container
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
-    // Clear feed and render single post
     feedContainer.innerHTML = `<div id='single-post-content'></div>`;
-    // Fetch post thread
     let postData;
     try {
         const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
@@ -697,38 +693,63 @@ async function renderSinglePostView(postUri) {
         document.getElementById('single-post-content').innerHTML = `<div class='text-red-500'>Failed to load post.</div>`;
         return;
     }
-    // Render post using a modified version of the feed renderer (single post, full width)
     const post = postData.post || postData;
     const user = post.author;
     let audioHtml = '';
-    let audioBlobUrl = null;
     let audioWaveformId = `waveform-${post.cid}`;
     let fileEmbed = null;
+    let audioBlobUrl = null;
     const embed = post.record && post.record.embed;
     if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
     else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-    // In single-post mode, load waveform and audio immediately (no placeholder, no lazy loading)
+    // If large file, do NOT preload or fetch audio, use lazy loader/fallback logic
+    let isLargeFile = false;
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.size > 10 * 1024 * 1024) {
+        isLargeFile = true;
+    }
     if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-        try {
-            audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
-        } catch (e) {
-            audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session Expired.</div>`;
-        }
-        if (audioBlobUrl && audioWaveformId) {
-            audioHtml = `<!--IMG-ARTIST-->
+        if (!isLargeFile) {
+            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            try {
+                audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
+            } catch (e) {
+                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailable or Session Expired.</div>`;
+            }
+            if (audioBlobUrl && audioWaveformId) {
+                audioHtml = `<!--IMG-ARTIST-->
+                  <div class="flex items-center gap-2 mt-3">
+                  <!--IMG-FEED-->
+                    <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
+                      <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
+                        <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
+                      </svg>
+                    </button>
+                    <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
+                      <div class="wavesurfer-time">0:00</div>
+                      <div class="wavesurfer-duration">0:00</div>
+                      <div class="wavesurfer-hover"></div>
+                    </div>
+                  </div>
+                `;
+            }
+        } else {
+            // Large file: use lazy loader/fallback logic, do not preload
+            audioHtml = `
               <div class="flex items-center gap-2 mt-3">
-              <!--IMG-FEED-->
                 <button class="wavesurfer-play-btn soundsky-play-btn" data-waveid="${audioWaveformId}">
                   <svg class="wavesurfer-play-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
                     <circle cx="14" cy="14" r="14" fill="#3b82f6"/>
                     <polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>
                   </svg>
                 </button>
-                <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative">
-                  <div class="wavesurfer-time">0:00</div>
-                  <div class="wavesurfer-duration">0:00</div>
-                  <div class="wavesurfer-hover"></div>
+                <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder">
+                  <div class="soundsky-placeholder-content">
+                    <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
+                      <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span>Play to load waveform</span>
+                  </div>
                 </div>
               </div>
             `;
@@ -741,14 +762,19 @@ async function renderSinglePostView(postUri) {
             </div>
         </div>
     `;
-    // Init WaveSurfer immediately if audio is present
-    if (audioBlobUrl && audioWaveformId) {
+    // Init WaveSurfer immediately if audio is present and not large
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/') && !isLargeFile && audioBlobUrl && audioWaveformId) {
         setTimeout(() => {
             const container = document.getElementById(audioWaveformId);
             if (container && window.WaveSurfer && audioBlobUrl) {
-                initWaveSurfer(audioWaveformId, audioBlobUrl);
+                initWaveSurfer(audioWaveformId, audioBlobUrl, fileEmbed.file.size);
             }
         }, 0);
+    }
+    // For large files, use lazy loader/fallback logic
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/') && isLargeFile) {
+        const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
     }
     // No lazy loader or placeholder in single-post mode
     // After rendering the single post, fetch and display comments
@@ -853,7 +879,7 @@ async function renderArtistPage(did) {
             const displayName = user.displayName || user.handle || 'Unknown';
             const time = formatRelativeTime(post.indexedAt);
             let audioHtml = '';
-            let audioBlobUrl = null;
+            let audioBlobUrl = null; // <-- Ensure declared at the top of the loop
             let audioWaveformId = `waveform-${post.cid}`;
             let fileEmbed = null;
             const embed = post.record && post.record.embed;
@@ -893,7 +919,7 @@ async function renderArtistPage(did) {
         // After rendering, initialize WaveSurfer instances
         setTimeout(() => {
             for (const { audioWaveformId, audioBlobUrl } of wavesurferInitQueue) {
-                initWaveSurfer(audioWaveformId, audioBlobUrl);
+                initWaveSurfer(audioWaveformId, audioBlobUrl, fileEmbed.file.size);
             }
         }, 0);
     }
@@ -910,7 +936,7 @@ async function renderArtistPage(did) {
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
         if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef), 0);
+            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
         }
     }
 }
@@ -1188,8 +1214,51 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
 }
 
 // --- Utility: Initialize WaveSurfer instance for a given waveform ID and blob URL ---
-function initWaveSurfer(audioWaveformId, audioBlobUrl) {
+function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
     const container = document.getElementById(audioWaveformId);
+    if (!container || !audioBlobUrl) return;
+    // Fallback for huge files: use a hidden <audio> element instead of WaveSurfer
+    if (blobSize && blobSize > 10 * 1024 * 1024) {
+        console.warn('File too large for WaveSurfer, using fallback audio player:', blobSize);
+        // Remove any existing fallback audio
+        let fallbackAudio = container.querySelector('audio.soundsky-fallback-audio');
+        if (fallbackAudio) {
+            fallbackAudio.pause();
+            fallbackAudio.remove();
+        }
+        // Create hidden audio element
+        fallbackAudio = document.createElement('audio');
+        fallbackAudio.className = 'soundsky-fallback-audio';
+        fallbackAudio.src = audioBlobUrl;
+        fallbackAudio.preload = 'none';
+        fallbackAudio.style.display = 'none';
+        container.appendChild(fallbackAudio);
+        // Setup play/pause logic on play button
+        const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+        if (playBtn) {
+            const svg = playBtn.querySelector('.wavesurfer-play-icon');
+            // Immediately reset the play button to the play icon (not loading)
+            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            playBtn.onclick = () => {
+                // Pause all other players
+                document.querySelectorAll('audio.soundsky-fallback-audio').forEach(aud => {
+                    if (aud !== fallbackAudio) aud.pause();
+                });
+                if (fallbackAudio.paused) {
+                    fallbackAudio.play();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                } else {
+                    fallbackAudio.pause();
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                }
+            };
+            fallbackAudio.onended = () => {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            };
+        }
+        container.innerHTML += `<div class="text-xs text-gray-400 mt-2">Waveform unavailable for large files</div>`;
+        return;
+    }
     if (container && window.WaveSurfer && audioBlobUrl) {
         // Destroy any existing instance for this id before creating a new one
         if (window.soundskyWavesurfers[audioWaveformId]) {
@@ -1232,7 +1301,6 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                 durationEl.textContent = '0:00';
                 container.appendChild(durationEl);
             }
-            // Init WaveSurfer
             const wavesurfer = window.WaveSurfer.create({
                 container: `#${audioWaveformId}`,
                 waveColor: gradient,
@@ -1244,15 +1312,12 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                 backend: 'MediaElement',
             });
             wavesurfer.load(audioBlobUrl);
-            // Store instance globally
             window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
-            // Play/pause button
             const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
             let hasCountedPlay = false;
             if (playBtn) {
                 const svg = playBtn.querySelector('.wavesurfer-play-icon');
                 playBtn.onclick = () => {
-                    // Pause all other players before playing this one
                     Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
                         if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
                             ws.pause();
@@ -1265,8 +1330,6 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                         wavesurfer.play();
                         svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
                         if (!hasCountedPlay) {
-                            // hasCountedPlay = true;
-                            // Use 'soundskycloud' as namespace, and audioWaveformId as key
                             incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
                         }
                     }
@@ -1294,7 +1357,6 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
                     }
             });
             }
-            // Time/duration overlays
             const formatTime = (seconds) => {
                 const minutes = Math.floor(seconds / 60);
                 const secondsRemainder = Math.round(seconds) % 60;
@@ -1310,7 +1372,6 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
             wavesurfer.on('timeupdate', (currentTime) => {
                 if (timeEl) timeEl.textContent = formatTime(currentTime);
             });
-            // Hover effect
             let hoverEl = container.querySelector('.wavesurfer-hover');
             if (!hoverEl) {
                 hoverEl = document.createElement('div');
@@ -1328,7 +1389,6 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
             });
         } catch (err) {
             console.error('WaveSurfer initWaveSurfer error:', err);
-            // Optionally, show a user-friendly error in the UI
             if (container) {
                 container.innerHTML = '<div class="text-red-500 text-xs mt-2">Audio unavailable or failed to load waveform.</div>';
             }
@@ -1337,20 +1397,74 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl) {
 }
 
 // --- LAZY AUDIO LOAD: Only load audio blob and WaveSurfer on play ---
-// Limit the number of active WaveSurfer instances to prevent memory leaks
-const MAX_ACTIVE_WAVESURFERS = 2;
-function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef) {
+// Accept blobSize as an argument
+function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
     const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
     if (!playBtn) return;
     const svg = playBtn.querySelector('.wavesurfer-play-icon');
     let wavesurfer = null;
     let audioLoaded = false;
     let loading = false;
+
+    // Fallback for huge files: show message before play, remove it and show <audio> on play
+    if (blobSize && blobSize > 10 * 1024 * 1024) {
+        const container = document.getElementById(audioWaveformId);
+        if (!container) return;
+        let fallbackAudio = null;
+        // Show the message before play
+        if (!container.querySelector('.soundsky-largefile-msg')) {
+            const msg = document.createElement('div');
+            msg.className = 'text-xs text-gray-400 mt-2 soundsky-largefile-msg';
+            msg.textContent = 'Waveform unavailable for large files';
+            container.appendChild(msg);
+        }
+        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+        playBtn.onclick = async () => {
+            // Remove the waveform placeholder if present
+            const placeholder = container.querySelector('.soundsky-placeholder-content');
+            if (placeholder) {
+                try { container.removeChild(placeholder); } catch (err) { console.warn('Could not remove placeholder', err); }
+            }
+            // Remove any previous audio or message
+            container.querySelectorAll('audio.soundsky-fallback-audio, .soundsky-largefile-msg').forEach(el => el.remove());
+            if (!fallbackAudio) {
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">...</text>`;
+                let audioBlobUrl = null;
+                try {
+                    audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
+                } catch (e) {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#e11d48"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">!</text>`;
+                    return;
+                }
+                fallbackAudio = document.createElement('audio');
+                fallbackAudio.className = 'soundsky-fallback-audio';
+                fallbackAudio.src = audioBlobUrl;
+                fallbackAudio.preload = 'none';
+                fallbackAudio.controls = true;
+                fallbackAudio.style.display = 'block';
+                fallbackAudio.style.width = '100%';
+                container.appendChild(fallbackAudio);
+                fallbackAudio.onended = () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                };
+            }
+            document.querySelectorAll('audio.soundsky-fallback-audio').forEach(aud => {
+                if (aud !== fallbackAudio) aud.pause();
+            });
+            if (fallbackAudio.paused) {
+                fallbackAudio.play();
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+            } else {
+                fallbackAudio.pause();
+                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+            }
+        };
+        return;
+    }
+
     playBtn.onclick = async () => {
         if (loading) return;
-        // If already loaded, just play/pause
         if (audioLoaded && wavesurfer) {
-            // Pause all other players before playing this one
             Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
                 if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
                     ws.pause();
@@ -1365,7 +1479,6 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef) {
             }
             return;
         }
-        // Otherwise, lazy load audio and waveform ONLY NOW
         loading = true;
         svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">...</text>`;
         let audioBlobUrl = null;
@@ -1376,32 +1489,27 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef) {
             loading = false;
             return;
         }
-        // Remove only the placeholder content, not the container itself
         const container = document.getElementById(audioWaveformId);
         if (container) {
             const placeholder = container.querySelector('.soundsky-placeholder-content');
             if (placeholder) {
                 try { container.removeChild(placeholder); } catch (err) { console.warn('Could not remove placeholder', err); }
             }
-            // Ensure the container has a proper width for WaveSurfer rendering
             container.style.width = '100%';
             container.style.minWidth = '120px';
             container.style.display = 'block';
         }
-        // Defensive: destroy any existing WaveSurfer instance for this id before creating a new one
         if (window.soundskyWavesurfers[audioWaveformId]) {
             try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch (err) { console.error('WaveSurfer destroy error', err); }
             delete window.soundskyWavesurfers[audioWaveformId];
         }
-        // Now init WaveSurfer and play
         setTimeout(() => {
             try {
-                initWaveSurfer(audioWaveformId, audioBlobUrl);
+                initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize);
                 wavesurfer = window.soundskyWavesurfers[audioWaveformId];
                 audioLoaded = true;
                 loading = false;
                 if (wavesurfer) {
-                    // Pause all other players before playing this one
                     Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
                         if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
                             ws.pause();
