@@ -17,10 +17,14 @@
 
 ##### Limitations
 - Account
-  - Currently only works with `bsky.social` accounts
-  - Custom PDS support is tricky. Contributors wanted!
+  - Works with any `bsky.social` accounts
+  - Custom PDS support needs testing. Contributors wanted!
 - Audio Formats
-- Temporary limits to `mp3` files to avoid abusing bsky storage
+  - Temporary limits to `mp3` files to avoid abusing bsky storage
+  - Max 100mb filesize by default
+- Audio Player
+  - wavesurfer w/ waveform with navigation
+  - fallback to `<audio>` for large files
 
 
 ## Live Demo
