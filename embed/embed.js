@@ -94,34 +94,40 @@ async function renderEmbedPlayer(uri) {
     }
     const userDid = post.author.did;
     let artworkUrl = extractArtworkUrl(post);
-    // --- Lazy loading and large file fallback ---
     const isLargeFile = fileEmbed.file.size > 10 * 1024 * 1024;
-    // Render player UI with play button and placeholder
-    container.innerHTML = renderMinimalPlayer(post, { lazy: true, isLargeFile });
-    updateMetaTags(post, '', artworkUrl);
-    // Setup lazy loader on play button
-    setTimeout(() => {
-      const playBtn = document.getElementById('embed-play-btn');
-      const playIcon = document.getElementById('embed-play-icon');
-      const waveformDiv = document.getElementById('embed-waveform');
-      let audioLoaded = false;
-      let wavesurfer = null;
-      let fallbackAudio = null;
-      let loading = false;
-      if (!playBtn) return;
-      playBtn.onclick = async () => {
-        if (loading) return;
-        if (audioLoaded && wavesurfer) {
-          if (wavesurfer.isPlaying()) {
-            wavesurfer.pause();
-            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
-          } else {
-            wavesurfer.play();
-            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
-          }
-          return;
-        }
-        if (audioLoaded && fallbackAudio) {
+    // Fetch audio blob immediately
+    let audioBlobUrl;
+    try {
+      audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
+    } catch (e) {
+      container.innerHTML = '<div style="color:red">Audio unavailable due to Bluesky CORS restrictions.</div>';
+      return;
+    }
+    updateMetaTags(post, audioBlobUrl, artworkUrl);
+    // Render player UI (no lazy, no placeholder)
+    container.innerHTML = renderMinimalPlayer(post, { lazy: false, isLargeFile });
+    // Setup player immediately
+    const playBtn = document.getElementById('embed-play-btn');
+    const playIcon = document.getElementById('embed-play-icon');
+    const waveformDiv = document.getElementById('embed-waveform');
+    if (isLargeFile) {
+      // Fallback <audio> for large files
+      const fallbackAudio = document.createElement('audio');
+      fallbackAudio.className = 'embed-fallback-audio';
+      fallbackAudio.src = audioBlobUrl;
+      fallbackAudio.preload = 'none';
+      fallbackAudio.controls = true;
+      fallbackAudio.style.display = 'block';
+      fallbackAudio.style.width = '100%';
+      waveformDiv.appendChild(fallbackAudio);
+      // Show message
+      let msg = document.createElement('div');
+      msg.className = 'text-xs text-gray-400 mt-2';
+      msg.textContent = 'Waveform unavailable for large files';
+      waveformDiv.appendChild(msg);
+      // Play/pause button logic
+      if (playBtn && playIcon) {
+        playBtn.onclick = () => {
           if (fallbackAudio.paused) {
             fallbackAudio.play();
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
@@ -129,62 +135,39 @@ async function renderEmbedPlayer(uri) {
             fallbackAudio.pause();
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
           }
-          return;
-        }
-        loading = true;
-        playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><text x="18" y="22" text-anchor="middle" fill="white" font-size="12">...</text>`;
-        let audioBlobUrl = null;
-        try {
-          audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
-        } catch (e) {
-          playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#e11d48"/><text x="18" y="22" text-anchor="middle" fill="white" font-size="12">!</text>`;
-          loading = false;
-          return;
-        }
-        updateMetaTags(post, audioBlobUrl, artworkUrl);
-        // Remove placeholder
-        const placeholder = waveformDiv && waveformDiv.querySelector('.embed-placeholder-content');
-        if (placeholder) {
-          try { waveformDiv.removeChild(placeholder); } catch {}
-        }
-        // Large file fallback
-        if (isLargeFile) {
-          fallbackAudio = document.createElement('audio');
-          fallbackAudio.className = 'embed-fallback-audio';
-          fallbackAudio.src = audioBlobUrl;
-          fallbackAudio.preload = 'none';
-          fallbackAudio.controls = true;
-          fallbackAudio.style.display = 'block';
-          fallbackAudio.style.width = '100%';
-          waveformDiv.appendChild(fallbackAudio);
-          // Show message
-          let msg = document.createElement('div');
-          msg.className = 'text-xs text-gray-400 mt-2';
-          msg.textContent = 'Waveform unavailable for large files';
-          waveformDiv.appendChild(msg);
-          fallbackAudio.onended = () => {
-            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+        };
+        fallbackAudio.onended = () => {
+          playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+        };
+      }
+    } else {
+      // WaveSurfer for normal files
+      setTimeout(() => {
+        initWaveSurferEmbed(audioBlobUrl);
+        // Play/pause button logic
+        if (playBtn && playIcon && window._embedWavesurfer) {
+          playBtn.onclick = () => {
+            const ws = window._embedWavesurfer;
+            if (ws.isPlaying()) {
+              ws.pause();
+              playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+            } else {
+              ws.play();
+              playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+            }
           };
-          audioLoaded = true;
-          loading = false;
-          // Play immediately
-          fallbackAudio.play();
-          playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
-          return;
-        }
-        // Normal file: init WaveSurfer
-        setTimeout(() => {
-          initWaveSurferEmbed(audioBlobUrl);
-          audioLoaded = true;
-          loading = false;
-          // Play immediately
-          if (window.WaveSurfer && window._embedWavesurfer) {
-            window._embedWavesurfer.play();
+          window._embedWavesurfer.on('finish', () => {
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+          });
+          window._embedWavesurfer.on('pause', () => {
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+          });
+          window._embedWavesurfer.on('play', () => {
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
-          }
-        }, 0);
-      };
-    }, 0);
+          });
+        }
+      }, 0);
+    }
   } catch (e) {
     console.error('Error rendering player:', e);
     container.innerHTML = '<div style="color:red">Error loading track.</div>';
@@ -260,41 +243,24 @@ function renderMinimalPlayer(post, { lazy = false, isLargeFile = false } = {}) {
       }
     }
   }
-  let placeholderHtml = '';
-  if (lazy) {
-    if (isLargeFile) {
-      placeholderHtml = `<div class="embed-placeholder-content" style="color:#b3b3b3;display:flex;align-items:center;gap:0.5rem;opacity:0.85;user-select:none;pointer-events:none;">
-        <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
-          <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span>play to load audio</span>
-      </div>`;
-    } else {
-      placeholderHtml = `<div class="embed-placeholder-content" style="color:#b3b3b3;display:flex;align-items:center;gap:0.5rem;opacity:0.85;user-select:none;pointer-events:none;">
-        <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
-          <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span>play to load waveform</span>
-      </div>`;
-    }
-  }
+  // No placeholder for embed
   const audioHtml = `
-    <div class="embed-audio-row">
-      <button id="embed-play-btn" class="embed-play-btn" aria-label="Play/Pause">
-        <svg id="embed-play-icon" width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <circle cx="18" cy="18" r="18" fill="#3b82f6"/>
-          <polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>
+    <div class=\"embed-audio-row\">
+      <button id=\"embed-play-btn\" class=\"embed-play-btn\" aria-label=\"Play/Pause\">
+        <svg id=\"embed-play-icon\" width=\"36\" height=\"36\" viewBox=\"0 0 36 36\" fill=\"none\">
+          <circle cx=\"18\" cy=\"18\" r=\"18\" fill=\"#3b82f6\"/>
+          <polygon class=\"play-shape\" points=\"14,11 27,18 14,25\" fill=\"white\"/>
         </svg>
       </button>
-      <div id="embed-waveform" class="embed-waveform">${placeholderHtml}</div>
+      <div id=\"embed-waveform\" class=\"embed-waveform\"></div>
     </div>
-    <div class="embed-time-row"><span id="embed-current">0:00</span> / <span id="embed-duration">0:00</span></div>
+    <div class=\"embed-time-row\"><span id=\"embed-current\">0:00</span> / <span id=\"embed-duration\">0:00</span></div>
   `;
   return `
-    <div class="embed-card">
-      <div class="embed-artwork">${artworkUrl ? `<img src="${artworkUrl}" alt="Artwork">` : ''}</div>
-      <div class="embed-title">${title}</div>
-      <div class="embed-artist">${artist}</div>
+    <div class=\"embed-card\">
+      <div class=\"embed-artwork\">${artworkUrl ? `<img src=\"${artworkUrl}\" alt=\"Artwork\">` : ''}</div>
+      <div class=\"embed-title\">${title}</div>
+      <div class=\"embed-artist\">${artist}</div>
       ${audioHtml}
     </div>
   `;

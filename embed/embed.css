@@ -42,31 +42,53 @@ body {
   display: flex;
   align-items: center;
   width: 100%;
-  margin-top: 1rem;
-  gap: 12px;
+  gap: 8px;
+  margin-top: 0;
 }
 .embed-play-btn {
-  background: none;
+  width: 48px;
+  height: 48px;
   border: none;
+  background: none;
   padding: 0;
-  cursor: pointer;
-  outline: none;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.10);
+  transition: transform 0.1s, box-shadow 0.1s;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  outline: none;
+}
+.embed-play-btn:focus,
+.embed-play-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(59,130,246,0.18);
 }
 .embed-waveform {
   flex: 1 1 0%;
-  min-width: 0;
+  min-width: 120px;
   height: 48px;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
 }
 .embed-time-row {
   margin-top: 0.5rem;
   text-align: left;
-  font-size: 1rem;
+  font-size: 0.6rem;
   color: #333;
   width: 100%;
+  display: block;
+}
+.embed-time, .embed-duration {
+  position: static;
+  left: auto;
+  right: auto;
+  top: auto;
+  transform: none;
+  font-size: inherit;
+  color: inherit;
+  font-weight: inherit;
+  pointer-events: auto;
+  display: inline;
 } 
