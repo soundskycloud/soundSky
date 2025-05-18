@@ -1411,23 +1411,28 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
         const container = document.getElementById(audioWaveformId);
         if (!container) return;
         let fallbackAudio = null;
+        let audioInitialized = false; // Track if <audio> has been created
         // Show the message before play
         if (!container.querySelector('.soundsky-largefile-msg')) {
             const msg = document.createElement('div');
             msg.className = 'text-xs text-gray-400 mt-2 soundsky-largefile-msg';
             msg.textContent = 'Waveform unavailable for large files';
-            container.appendChild(msg);
+            // container.appendChild(msg);
         }
         svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
         playBtn.onclick = async () => {
-            // Remove the waveform placeholder if present
+            // Remove the waveform placeholder if present (only once)
             const placeholder = container.querySelector('.soundsky-placeholder-content');
             if (placeholder) {
                 try { container.removeChild(placeholder); } catch (err) { console.warn('Could not remove placeholder', err); }
             }
-            // Remove any previous audio or message
-            container.querySelectorAll('audio.soundsky-fallback-audio, .soundsky-largefile-msg').forEach(el => el.remove());
-            if (!fallbackAudio) {
+            // Remove the message (only once)
+            const msg = container.querySelector('.soundsky-largefile-msg');
+            if (msg) {
+                try { container.removeChild(msg); } catch (err) { console.warn('Could not remove message', err); }
+            }
+            // Only create <audio> once
+            if (!audioInitialized) {
                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><text x="14" y="18" text-anchor="middle" fill="white" font-size="10">...</text>`;
                 let audioBlobUrl = null;
                 try {
@@ -1447,10 +1452,13 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
                 fallbackAudio.onended = () => {
                     svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
                 };
+                audioInitialized = true;
             }
+            // Pause all other players
             document.querySelectorAll('audio.soundsky-fallback-audio').forEach(aud => {
                 if (aud !== fallbackAudio) aud.pause();
             });
+            // Toggle play/pause only, never hide/remove <audio>
             if (fallbackAudio.paused) {
                 fallbackAudio.play();
                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
