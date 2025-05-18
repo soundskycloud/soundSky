@@ -23,13 +23,35 @@ if (!postUri) {
 }
 
 async function fetchAudioBlobUrl(userDid, blobRef) {
-  // Debug output
-  console.log('fetchAudioBlobUrl:', { userDid, blobRef, userDidType: typeof userDid, blobRefType: typeof blobRef, blobRefRaw: blobRef });
-  const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
-  let resp = await fetch(blobUrl);
+  // Look up the user's PDS/serviceEndpoint using PLC directory
+  let baseUrl = 'https://bsky.social';
+  try {
+    const plcResponse = await fetch(`https://plc.directory/${userDid}`);
+    if (!plcResponse.ok) throw new Error(`Failed to resolve DID: ${plcResponse.status}`);
+    const plcData = await plcResponse.json();
+    // The PDS URL is in the 'service' field of the DID document
+    const pdsEndpoint = plcData.service.find(s => s.id === '#atproto_pds')?.serviceEndpoint;
+    if (pdsEndpoint) {
+      baseUrl = pdsEndpoint.replace(/\/$/, '');
+    }
+  } catch (e) {
+    // fallback to default
+  }
+  const blobUrl = `${baseUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+  let resp;
+  try {
+    resp = await fetch(blobUrl);
+  } catch (e) {
+    resp = { ok: false };
+  }
   if (!resp.ok) {
+    // fallback to CORS proxy
     const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
-    resp = await fetch(corsProxyUrl);
+    try {
+      resp = await fetch(corsProxyUrl);
+    } catch (e) {
+      resp = { ok: false };
+    }
   }
   if (!resp.ok) throw new Error('Blob fetch failed');
   const audioBlob = await resp.blob();
@@ -70,28 +92,99 @@ async function renderEmbedPlayer(uri) {
       console.log('blobRef is not a string after extraction:', blobRef);
       blobRef = '';
     }
-    // End fix
     const userDid = post.author.did;
-    
-    // Extract artwork URL
     let artworkUrl = extractArtworkUrl(post);
-    
-    let audioBlobUrl;
-    try {
-      audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
-    } catch (e) {
-      container.innerHTML = '<div style="color:red">Audio unavailable due to Bluesky CORS restrictions.</div>';
-      return;
-    }
-    
-    // Render minimal player
-    container.innerHTML = renderMinimalPlayer(post);
-    
-    // Update meta tags with post information
-    updateMetaTags(post, audioBlobUrl, artworkUrl);
-    
-    // Initialize WaveSurfer
-    setTimeout(() => initWaveSurferEmbed(audioBlobUrl), 0);
+    // --- Lazy loading and large file fallback ---
+    const isLargeFile = fileEmbed.file.size > 10 * 1024 * 1024;
+    // Render player UI with play button and placeholder
+    container.innerHTML = renderMinimalPlayer(post, { lazy: true, isLargeFile });
+    updateMetaTags(post, '', artworkUrl);
+    // Setup lazy loader on play button
+    setTimeout(() => {
+      const playBtn = document.getElementById('embed-play-btn');
+      const playIcon = document.getElementById('embed-play-icon');
+      const waveformDiv = document.getElementById('embed-waveform');
+      let audioLoaded = false;
+      let wavesurfer = null;
+      let fallbackAudio = null;
+      let loading = false;
+      if (!playBtn) return;
+      playBtn.onclick = async () => {
+        if (loading) return;
+        if (audioLoaded && wavesurfer) {
+          if (wavesurfer.isPlaying()) {
+            wavesurfer.pause();
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+          } else {
+            wavesurfer.play();
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+          }
+          return;
+        }
+        if (audioLoaded && fallbackAudio) {
+          if (fallbackAudio.paused) {
+            fallbackAudio.play();
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+          } else {
+            fallbackAudio.pause();
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+          }
+          return;
+        }
+        loading = true;
+        playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><text x="18" y="22" text-anchor="middle" fill="white" font-size="12">...</text>`;
+        let audioBlobUrl = null;
+        try {
+          audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
+        } catch (e) {
+          playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#e11d48"/><text x="18" y="22" text-anchor="middle" fill="white" font-size="12">!</text>`;
+          loading = false;
+          return;
+        }
+        updateMetaTags(post, audioBlobUrl, artworkUrl);
+        // Remove placeholder
+        const placeholder = waveformDiv && waveformDiv.querySelector('.embed-placeholder-content');
+        if (placeholder) {
+          try { waveformDiv.removeChild(placeholder); } catch {}
+        }
+        // Large file fallback
+        if (isLargeFile) {
+          fallbackAudio = document.createElement('audio');
+          fallbackAudio.className = 'embed-fallback-audio';
+          fallbackAudio.src = audioBlobUrl;
+          fallbackAudio.preload = 'none';
+          fallbackAudio.controls = true;
+          fallbackAudio.style.display = 'block';
+          fallbackAudio.style.width = '100%';
+          waveformDiv.appendChild(fallbackAudio);
+          // Show message
+          let msg = document.createElement('div');
+          msg.className = 'text-xs text-gray-400 mt-2';
+          msg.textContent = 'Waveform unavailable for large files';
+          waveformDiv.appendChild(msg);
+          fallbackAudio.onended = () => {
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
+          };
+          audioLoaded = true;
+          loading = false;
+          // Play immediately
+          fallbackAudio.play();
+          playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+          return;
+        }
+        // Normal file: init WaveSurfer
+        setTimeout(() => {
+          initWaveSurferEmbed(audioBlobUrl);
+          audioLoaded = true;
+          loading = false;
+          // Play immediately
+          if (window.WaveSurfer && window._embedWavesurfer) {
+            window._embedWavesurfer.play();
+            playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+          }
+        }, 0);
+      };
+    }, 0);
   } catch (e) {
     console.error('Error rendering player:', e);
     container.innerHTML = '<div style="color:red">Error loading track.</div>';
@@ -99,17 +192,27 @@ async function renderEmbedPlayer(uri) {
 }
 
 function extractArtworkUrl(post) {
-  // Extract artwork (from embed or facets)
+  // 1. Check for soundskyimg=xxxxxx tag
+  const tags = post.record && post.record.tags;
+  if (tags && Array.isArray(tags)) {
+    for (const tag of tags) {
+      if (typeof tag === 'string' && tag.startsWith('soundskyimg=')) {
+        const imgurId = tag.split('=')[1];
+        if (imgurId) {
+          return `https://i.imgur.com/${imgurId}.png`;
+        }
+      }
+    }
+  }
+  // 2. Fallback to existing logic (embed/facets/blobs)
   let artworkUrl = '';
   let embed = post.record && post.record.embed;
   let images = [];
-  
   if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
     images = embed.media.images;
   } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
     images = embed.images;
   }
-  
   const facets = post.record && post.record.facets;
   if (facets && Array.isArray(facets)) {
     for (const facet of facets) {
@@ -124,7 +227,6 @@ function extractArtworkUrl(post) {
       }
     }
   }
-  
   if (images.length > 0) {
     const img = images[0];
     let imgUrl = '';
@@ -135,18 +237,13 @@ function extractArtworkUrl(post) {
     }
     artworkUrl = imgUrl;
   }
-  
   return artworkUrl;
 }
 
-function renderMinimalPlayer(post) {
-  // Extract artwork (from embed or facets)
+function renderMinimalPlayer(post, { lazy = false, isLargeFile = false } = {}) {
   let artworkUrl = extractArtworkUrl(post);
-  
-  // Title and artist
   let title = post.record?.text || '';
   const artist = post.author?.displayName || post.author?.handle || '';
-  // Remove image links from displayed post text
   const facets = post.record && post.record.facets;
   if (facets && Array.isArray(facets)) {
     for (const facet of facets) {
@@ -157,14 +254,30 @@ function renderMinimalPlayer(post) {
             feature.uri &&
             feature.uri.match(/\.(png|jpe?g|gif)$/i)
           ) {
-            // Remove the image URL from the text
             title = title.replace(feature.uri, '').replace(/\n{2,}/g, '\n').trim();
           }
         }
       }
     }
   }
-  // Audio player area: play button left, waveform right
+  let placeholderHtml = '';
+  if (lazy) {
+    if (isLargeFile) {
+      placeholderHtml = `<div class="embed-placeholder-content" style="color:#b3b3b3;display:flex;align-items:center;gap:0.5rem;opacity:0.85;user-select:none;pointer-events:none;">
+        <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
+          <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>play to load audio</span>
+      </div>`;
+    } else {
+      placeholderHtml = `<div class="embed-placeholder-content" style="color:#b3b3b3;display:flex;align-items:center;gap:0.5rem;opacity:0.85;user-select:none;pointer-events:none;">
+        <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
+          <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>play to load waveform</span>
+      </div>`;
+    }
+  }
   const audioHtml = `
     <div class="embed-audio-row">
       <button id="embed-play-btn" class="embed-play-btn" aria-label="Play/Pause">
@@ -173,7 +286,7 @@ function renderMinimalPlayer(post) {
           <polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>
         </svg>
       </button>
-      <div id="embed-waveform" class="embed-waveform"></div>
+      <div id="embed-waveform" class="embed-waveform">${placeholderHtml}</div>
     </div>
     <div class="embed-time-row"><span id="embed-current">0:00</span> / <span id="embed-duration">0:00</span></div>
   `;
@@ -220,29 +333,8 @@ function initWaveSurferEmbed(audioBlobUrl) {
     backend: 'MediaElement',
   });
   wavesurfer.load(audioBlobUrl);
-  // Play/pause button
-  const playBtn = document.getElementById('embed-play-btn');
-  const playIcon = document.getElementById('embed-play-icon');
-  if (playBtn && playIcon) {
-    playBtn.onclick = () => {
-      if (wavesurfer.isPlaying()) {
-        wavesurfer.pause();
-        playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
-      } else {
-        wavesurfer.play();
-        playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
-      }
-    };
-    wavesurfer.on('finish', () => {
-      playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
-    });
-    wavesurfer.on('pause', () => {
-      playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
-    });
-    wavesurfer.on('play', () => {
-      playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
-    });
-  }
+  // Store instance for play control
+  window._embedWavesurfer = wavesurfer;
   // Time/duration overlays
   const timeEl = document.getElementById('embed-current');
   const durationEl = document.getElementById('embed-duration');
