@@ -1664,6 +1664,7 @@ feedContainer.addEventListener('click', async function(e) {
                 shareBtn.classList.remove('text-blue-500');
             }, 1200);
         });
+        window.open(window.location.origin + url, '_blank');
     }
 });
 
