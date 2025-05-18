@@ -126,6 +126,7 @@ loginBtn.addEventListener('click', async () => {
     loginBtn.textContent = 'Logging in...';
     try {
         // Save PDS to localStorage
+        console.log('DEBUG SAVE PDS', pds);
         localStorage.setItem('bskyPds', pds);
         // Create agent with selected PDS
         agent = new BskyAgent({ service: pds });
@@ -204,7 +205,7 @@ if (navLikes) navLikes.onclick = (e) => {
 // --- Utility: Fetch audio blob URL with CORS fallback ---
 async function fetchAudioBlobUrl(userDid, blobRef) {
     // Use the current PDS for audio blobs if not default
-    let baseUrl = 'https://bsky.social';
+    let baseUrl = localStorage.getItem('bskyPds') || 'https://bsky.social';
     try {
         const currentPds = typeof getCurrentPdsUrl === 'function' ? getCurrentPdsUrl() : null;
         if (currentPds && typeof currentPds === 'string' && currentPds !== 'https://bsky.social') {
@@ -212,13 +213,23 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
         }
     } catch (e) {
         // fallback to default
+        baseUrl = localStorage.getItem('bskyPds') || 'https://bsky.social';
     }
-    const blobUrl = `${baseUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+    const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+    const blobPdsUrl = `${baseUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
     let resp;
     try {
         resp = await fetch(blobUrl);
     } catch (e) {
         resp = { ok: false };
+    }
+    if (!resp.ok) {
+        // fallback to PDS direct requests
+        try {
+            resp = await fetch(blobPdsUrl);
+        } catch (e) {
+            resp = { ok: false };
+        }
     }
     if (!resp.ok) {
         // fallback to CORS proxy
@@ -229,6 +240,7 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
             resp = { ok: false };
         }
     }
+    
     if (!resp.ok) throw new Error('Blob fetch failed');
     const audioBlob = await resp.blob();
     return URL.createObjectURL(audioBlob);
