@@ -204,32 +204,26 @@ if (navLikes) navLikes.onclick = (e) => {
 
 // --- Utility: Fetch audio blob URL with CORS fallback ---
 async function fetchAudioBlobUrl(userDid, blobRef) {
-    // Use the current PDS for audio blobs if not default
-    let baseUrl = localStorage.getItem('bskyPds') || 'https://bsky.social';
+    // Look up the user's PDS/serviceEndpoint using getProfile
+    let baseUrl = 'https://bsky.social';
     try {
-        const currentPds = typeof getCurrentPdsUrl === 'function' ? getCurrentPdsUrl() : null;
-        if (currentPds && typeof currentPds === 'string' && currentPds !== 'https://bsky.social') {
-            baseUrl = currentPds.replace(/\/$/, '');
-        }
+          const plcResponse = await fetch(`https://plc.directory/${userDid}`);
+          if (!plcResponse.ok) throw new Error(`Failed to resolve DID: ${plcResponse.status}`);
+          const plcData = await plcResponse.json();
+          // The PDS URL is in the 'service' field of the DID document
+          const pdsEndpoint = plcData.service.find(s => s.id === '#atproto_pds')?.serviceEndpoint;
+          if (!pdsEndpoint) throw new Error("Could not find PDS endpoint in DID document");
+          console.log(`User's PDS: ${pdsEndpoint}`);
+          baseUrl = pdsEndpoint;
     } catch (e) {
         // fallback to default
-        baseUrl = localStorage.getItem('bskyPds') || 'https://bsky.social';
     }
-    const blobUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
-    const blobPdsUrl = `${baseUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+    const blobUrl = `${baseUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
     let resp;
     try {
         resp = await fetch(blobUrl);
     } catch (e) {
         resp = { ok: false };
-    }
-    if (!resp.ok) {
-        // fallback to PDS direct requests
-        try {
-            resp = await fetch(blobPdsUrl);
-        } catch (e) {
-            resp = { ok: false };
-        }
     }
     if (!resp.ok) {
         // fallback to CORS proxy
@@ -240,7 +234,6 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
             resp = { ok: false };
         }
     }
-    
     if (!resp.ok) throw new Error('Blob fetch failed');
     const audioBlob = await resp.blob();
     return URL.createObjectURL(audioBlob);
