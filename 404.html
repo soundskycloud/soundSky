@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>soundSky Redirect</title>
+  <script>
+    window.onload = function() {
+      const path = window.location.pathname;
+      const pathWithoutSlash = path.replace(/^\//, '');
+      const redirectUrl = window.location.origin + '/?artist=' + encodeURIComponent(pathWithoutSlash);
+      window.location.href = redirectUrl;
+    };
+  </script>
+</head>
+<body>
+  <p>soundSky Redirect</p>
+</body>
+</html>
