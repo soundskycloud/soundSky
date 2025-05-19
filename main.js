@@ -623,7 +623,7 @@ if (audioPostForm) {
                 const imgurId = soundskyImgTag.replace('soundskyimg=', '');
                 const linkUrl = `https://soundsky.cloud/?q=${imgurId}`;
                 // Always append "\n\nsoundSky" and link that word
-                const linkText = '\n\nsoundSky';
+                const linkText = '\n\nPlay on SoundSky';
                 if (!text.endsWith(linkText)) text += linkText;
                 // Find byteStart/byteEnd for 'soundSky'
                 const encoder = new TextEncoder();
@@ -1074,8 +1074,12 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
     const time = formatRelativeTime(post.indexedAt);
     // --- Strip trailing \n\nsoundSky from text for display ---
     let text = post.record.text || '';
+    // Strip player link for bsky posts
     if (text.endsWith('\n\nsoundSky')) {
         text = text.slice(0, -'\n\nsoundSky'.length);
+    }
+    if (text.endsWith('\n\nPlay on SoundSky')) {
+        text = text.slice(0, -'\n\nPlay on SoundSky'.length);
     }
     // Like, repost, delete, follow buttons
     let deleteBtnHtml = '';
