@@ -105,15 +105,21 @@
         }
 
         .wavesurfer.waveform::before {
+          --wave-line-color: #f2f2f2;
+        }
+
+        .dark .wavesurfer.waveform::before {
+          --wave-line-color: #2c2c2cFF;
+        }
+        .wavesurfer.waveform::before {
           content: "";
           position: absolute;
           top: 50%;
           left: 0;
           width: 100%;
-          border-top: 2px dotted #2c2c2c;
+          border-top: 2px dotted var(--wave-line-color);
           pointer-events: none;
           transform: translateY(-50%);
-          background: transparent;
         }
         
     </style>
