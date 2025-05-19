@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoundSky Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      background: #111;
+    }
+    .video-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+      filter: brightness(0.7) blur(1px);
+    }
+    .login-container {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 2rem 1.5rem 1.5rem 1.5rem;
+      min-width: 320px;
+      max-width: 90vw;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .login-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 1.2rem;
+      letter-spacing: 0.2px;
+      text-align: center;
+    }
+    .login-form input {
+      width: 100%;
+      padding: 0.6rem 0.9rem;
+      margin-bottom: 0.8rem;
+      border-radius: 7px;
+      border: 1px solid #e5e7eb;
+      font-size: 0.98rem;
+      background: #f3f4f6;
+      color: #222;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .login-form input:focus {
+      border: 1.5px solid #2563eb;
+      background: #fff;
+    }
+    .login-label {
+      font-size: 0.97rem;
+      color: #444;
+      font-weight: 500;
+      margin-bottom: 0.2rem;
+      margin-top: 0.1rem;
+      display: block;
+      text-align: left;
+    }
+    .login-btn {
+      width: 100%;
+      padding: 0.6rem 0.9rem;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+      transition: background 0.2s;
+      box-shadow: 0 1px 2px rgba(59,130,246,0.08);
+    }
+    .login-btn:hover {
+      background: #1d4ed8;
+    }
+    .login-error {
+      color: #e11d48;
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+      display: none;
+      text-align: left;
+      width: 100%;
+    }
+    .login-help {
+      font-size: 0.88rem;
+      color: #6b7280;
+      margin-top: 0.7rem;
+      text-align: left;
+      width: 100%;
+      line-height: 1.5;
+    }
+    .login-help a { color: #2563eb; text-decoration: underline; }
+    @media (max-width: 500px) {
+      html, body {
+        background: #fff !important;
+        min-width: 100vw;
+        min-height: 100vh;
+        overflow: auto;
+      }
+      .video-bg {
+        display: none !important;
+      }
+      .login-container {
+        min-width: 100vw !important;
+        max-width: 100vw !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 1.2rem 0.5rem !important;
+        top: 0 !important;
+        left: 0 !important;
+        transform: none !important;
+        position: fixed !important;
+        height: 100vh !important;
+        justify-content: center !important;
+        align-items: center !important;
+        display: flex !important;
+      }
+      .login-title { font-size: 1.05rem !important; }
+      .login-form input, .login-btn { font-size: 1rem !important; }
+      .login-help { font-size: 0.95rem !important; }
+    }
+  </style>
+</head>
+<body>
+  <video class="video-bg" src="https://soundsky.cloud/embed/soundsky_background.mp4" autoplay loop muted playsinline></video>
+  <div class="login-container">
+    <div class="login-title">Sign in to SoundSky</div>
+    <form id="login-form" class="login-form">
+      <input id="username" type="text" placeholder="bsky handle (e.g. user.bsky.so)" required style="width:100%;box-sizing:border-box;" />
+      <input id="password" type="password" placeholder="App password" required style="width:100%;box-sizing:border-box;" />
+      <input id="pds-server" type="text" value="https://bsky.social" placeholder="https://bsky.social" required style="width:100%;box-sizing:border-box;" />
+      <button id="login-btn" type="submit" class="login-btn" style="width:100%;box-sizing:border-box;">Login</button>
+      <div id="login-error" class="login-error"></div>
+    </form>
+    <div class="login-help">
+      Get an app password at <a href="https://bsky.app/settings/app-passwords" target="_blank">bsky.app/settings/app-passwords</a><br>
+      No account? <a href="https://bsky.app/settings/app-passwords" target="_blank">Sign up on bluesky</a> and login using your new credentials
+    </div>
+  </div>
+  <script type="module">
+    import { BskyAgent } from 'https://esm.sh/@atproto/api';
+    let agent = null;
+    const loginForm = document.getElementById('login-form');
+    const loginBtn = document.getElementById('login-btn');
+    const loginError = document.getElementById('login-error');
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.style.display = 'none';
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Logging in...';
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const pdsInput = document.getElementById('pds-server');
+      const pds = pdsInput && pdsInput.value.trim() ? pdsInput.value.trim() : 'https://bsky.social';
+      try {
+        localStorage.setItem('bskyPds', pds);
+        agent = new BskyAgent({ service: pds });
+        await agent.login({ identifier: username, password });
+        localStorage.setItem('bskySession', JSON.stringify(agent.session));
+        // Redirect to main page after login
+        window.location.href = '/';
+      } catch (e) {
+        loginError.textContent = 'Login failed: ' + (e.message || e);
+        loginError.style.display = 'block';
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+      }
+    });
+  </script>
+</body>
+</html> 

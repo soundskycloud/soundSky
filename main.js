@@ -109,10 +109,10 @@ window.addEventListener('DOMContentLoaded', async () => {
             setTimeout(fetchAndRenderSidebarLikedSongs, 1200);
         } catch (e) {
             localStorage.removeItem('bskySession');
-            loginForm.style.display = 'flex';
+            window.location.href = '/login';
         }
     } else {
-        loginForm.style.display = 'flex';
+        window.location.href = '/login';
     }
     // Hide the upload box by default on page load
     const uploadForm = document.getElementById('create-audio-post');
@@ -1941,8 +1941,7 @@ const logoutBtn = document.getElementById('logout-btn');
 if (logoutBtn) {
     logoutBtn.onclick = () => {
         localStorage.removeItem('bskySession');
-        loginForm.style.display = 'flex';
-        window.location.reload();
+        window.location.href = '/login';
     };
 }
 const volumeBtn = document.getElementById('volume-btn');
