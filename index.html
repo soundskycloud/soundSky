@@ -103,6 +103,19 @@
         .wavesurfer-duration {
             right: 0;
         }
+
+        .wavesurfer.waveform::before {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 0;
+          width: 100%;
+          border-top: 2px dotted #2c2c2c;
+          pointer-events: none;
+          transform: translateY(-50%);
+          background: transparent;
+        }
+        
     </style>
     <style>
     @media (max-width: 400px) {
