@@ -794,10 +794,8 @@ async function renderSinglePostView(postUri) {
                 </button>
                 <div id="${audioWaveformId}" class="wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder">
                   <div class="soundsky-placeholder-content">
-                    <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
-                      <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    <span>play to load waveform</span>
+                    <i class="fa fa-chart-simple"></i>
+                    <span>play to load wave</span>
                   </div>
                 </div>
               </div>
@@ -1225,10 +1223,8 @@ function renderPostCard({ post, user, audioHtml, options = {} }) {
             </button>
             <div id="${options.lazyWaveformId}" class="wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder">
               <div class="soundsky-placeholder-content">
-                <svg width="32" height="32" fill="none" viewBox="0 0 32 32">
-                  <path d="M8 24V8M12 24V16M16 24V12M20 24V18M24 24V10" stroke="#b3b3b3" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <span>play to load waveform</span>
+                <i class="fa fa-chart-simple"></i>
+                <span>play to load wave</span>
               </div>
             </div>
           </div>
