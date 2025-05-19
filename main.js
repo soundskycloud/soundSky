@@ -9,7 +9,7 @@ const loginError = document.getElementById('login-error');
 const feedContainer = document.getElementById('feed');
 const feedLoading = document.getElementById('feed-loading');
 
-const defaultAvatar = '/default-avatar.png';
+const defaultAvatar = '/favicon.ico';
 
 // Immediately hide the upload box if present
 const uploadForm = document.getElementById('create-audio-post');
@@ -1548,6 +1548,7 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
             } else {
                 wavesurfer.play();
                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
             }
             return;
         }
@@ -1589,6 +1590,7 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
                     });
                     wavesurfer.play();
                     svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
                 }
             } catch (err) {
                 console.error('WaveSurfer init error', err);
