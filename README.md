@@ -1,5 +1,5 @@
 <a href="https://soundsky.cloud">
-  <img src="https://github.com/user-attachments/assets/c32acf81-8f14-48a8-a91f-a3eb5c7c4003" width="100%" >
+  <img src="https://github.com/user-attachments/assets/5435b310-9e43-40e6-b125-2cc071099c30" width="600" >
 </a>
 
 ## SoundSky ☁️
