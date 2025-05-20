@@ -30,7 +30,7 @@ function renderSidebarLikedSongs(likedAudioPosts) {
         container.innerHTML = '<div class="text-xs text-gray-400 px-4"><i class="fas fa-heart mr-3"></i> No liked songs yet.</div>';
         return;
     }
-    container.innerHTML = `<div class="text-xs text-gray-500 font-semibold px-4 mb-2"><i class="fas fa-heart mr-3"></i> Liked Songs</div>` +
+    container.innerHTML = `<div class="text-xs text-gray-500 font-semibold px-4 mb-2"><!-- liked songs --></div>` +
         '<div style="max-height: 80%; overflow-y: auto;">' +
         likedAudioPosts.map(item => {
             const post = item.post || item;
@@ -178,7 +178,7 @@ let nextCursor = null;
 
 // Sidebar navigation logic
 function setActiveNav(id) {
-    document.querySelectorAll('#nav-feed, #nav-discover').forEach(el => {
+    document.querySelectorAll('#nav-feed, #nav-discover, #nav-likes').forEach(el => {
         el.classList.remove('bg-blue-500', 'text-white');
         el.classList.add('text-gray-700');
     });
@@ -195,15 +195,12 @@ const navDiscover = document.getElementById('nav-discover');
 const navLikes = document.getElementById('nav-likes');
 if (navFeed) navFeed.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-feed'); fetchSoundskyFeed({ mode: 'home' }); };
 if (navDiscover) navDiscover.onclick = (e) => { e.preventDefault(); clearAllParamsInUrl(); setActiveNav('nav-discover'); fetchSoundskyFeed({ mode: 'discover' }); };
-
-/*
 if (navLikes) navLikes.onclick = (e) => {
     e.preventDefault();
+    clearAllParamsInUrl();
     setActiveNav('nav-likes');
-    navLikes.classList.add('opacity-50', 'cursor-not-allowed');
-    fetchSoundskyFeed({ mode: 'likes' });
+    renderLikedPostsAlbumView();
 };
-*/
 
 // --- Utility: Fetch audio blob URL with CORS fallback ---
 async function fetchAudioBlobUrl(userDid, blobRef) {
@@ -2048,3 +2045,168 @@ renderArtistPage = async function(...args) {
     await origRenderArtistPage.apply(this, args);
     addArtistPagePostTitleHandlers();
 };
+
+async function renderLikedPostsAlbumView() {
+    destroyAllWaveSurfers();
+    feedContainer.innerHTML = '<div class="text-center text-gray-400 py-8"><img src="loading.webp" style="margin:auto;width: 80px;"></div>';
+    let likedPosts = [];
+    try {
+        const res = await agent.api.app.bsky.feed.getActorLikes({ actor: agent.session.did, limit: 100 });
+        likedPosts = filterAudioPosts(res.data?.feed || []);
+    } catch (e) {
+        feedContainer.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load liked posts.</div>';
+        return;
+    }
+    if (!likedPosts.length) {
+        feedContainer.innerHTML = '<div class="text-center text-gray-400 py-8">No liked posts yet.</div>';
+        return;
+    }
+    // Album grid view
+    let html = '<div class="album-grid-outer">';
+    html += '<div class="text-2xl font-bold mb-4 text-left">Likes</div>';
+    html += '<div class="album-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">';
+    for (const item of likedPosts) {
+        const post = item.post || item;
+        const user = post.author;
+        // Artwork logic (reuse from renderPostCard)
+        let coverUrl = '';
+        let embed = post.record && post.record.embed;
+        let images = [];
+        let soundskyImgId = null;
+        const tags = post.record && post.record.tags;
+        if (tags && Array.isArray(tags)) {
+            for (const tag of tags) {
+                if (typeof tag === 'string' && tag.startsWith('soundskyimg=')) {
+                    soundskyImgId = tag.split('=')[1];
+                    break;
+                }
+            }
+        }
+        if (soundskyImgId) {
+            coverUrl = `https://i.imgur.com/${soundskyImgId}.png`;
+        } else {
+            if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+                images = embed.media.images;
+            } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+                images = embed.images;
+            }
+            if (images.length > 0) {
+                const img = images[0];
+                if (img.image && img.image.ref) {
+                    const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                    const userDid = user.did;
+                    coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+                }
+            }
+        }
+        // Title and artist
+        const title = (post.record?.text || '').split('\n')[0].slice(0, 40) || 'Untitled';
+        const artist = user.displayName || user.handle || '';
+        // Play logic: fetch audio blob and play on click
+        const fileEmbed = (embed && embed.$type === 'app.bsky.embed.file') ? embed : (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file' ? embed.media : null);
+        let playBtnHtml = '';
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
+                ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy">` : `<div class="album-cover-placeholder"></div>`}
+                <div class="album-cover-overlay"><i class="fas fa-play album-play-icon"></i></div>
+            </button>`;
+        } else {
+            playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy">` : `<div class="album-cover-placeholder"></div>`;
+        }
+        html += `<div class="album-tile">
+            ${playBtnHtml}
+            <div class="album-title-row">
+                <a href="#" class="album-title-link" data-post-uri="${post.uri}">${title}</a>
+            </div>
+            <div class="album-artist-row">
+                <a href="#" class="album-artist-link" data-did="${user.did}">${artist}</a>
+            </div>
+        </div>`;
+    }
+    html += '</div></div>';
+    // Add minimal CSS for album view
+    html += `<style>
+    .album-grid-outer { margin: 1.5rem auto 1.5rem auto; max-width: 1200px; padding: 0 1.2rem; }
+    .album-grid { width: 100%; }
+    .album-tile { display: flex; flex-direction: column; align-items: center; }
+    .album-cover-btn { position: relative; width: 100%; aspect-ratio: 1/1; background: none; border: none; padding: 0; margin-bottom: 0.5rem; cursor: pointer; border-radius: 12px; overflow: hidden; }
+    .album-cover-img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; }
+    .album-cover-placeholder { width: 100%; height: 0; padding-bottom: 100%; background: #222; border-radius: 12px; display: block; position: relative; }
+    .album-cover-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.25); color: #fff; font-size: 2rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+    .album-cover-btn:hover .album-cover-overlay, .album-cover-btn:focus .album-cover-overlay { opacity: 1; pointer-events: auto; }
+    .album-title-row { font-weight: 600; font-size: 0.98rem; margin-bottom: 0.1rem; text-align: center; }
+    .album-title-link { color: #fff; text-decoration: none; font-size: 0.97rem; }
+    .album-title-link:hover { text-decoration: underline; color: #3b82f6; }
+    .album-artist-row { font-size: 0.93rem; color: #bbb; text-align: center; }
+    .album-artist-link { color: #bbb; text-decoration: none; font-size: 0.93rem; }
+    .album-artist-link:hover { color: #3b82f6; text-decoration: underline; }
+    </style>`;
+    feedContainer.innerHTML = html;
+    // Play logic for covers
+    document.querySelectorAll('.album-cover-btn').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const did = btn.getAttribute('data-did');
+            const blobRef = btn.getAttribute('data-blob');
+            if (!did || !blobRef) return;
+            // Pause any existing audio and reset icons
+            document.querySelectorAll('.album-cover-audio').forEach(aud => { try { aud.pause(); aud.remove(); } catch {} });
+            document.querySelectorAll('.album-play-icon').forEach(icon => { icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); });
+            // If already playing, just stop
+            const overlayIcon = btn.querySelector('.album-play-icon');
+            if (btn.classList.contains('playing')) {
+                btn.classList.remove('playing');
+                if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); }
+                return;
+            }
+            // Mark this as playing
+            btn.classList.add('playing');
+            if (overlayIcon) { overlayIcon.classList.remove('fa-play'); overlayIcon.classList.add('fa-pause'); }
+            // Fetch and play audio
+            let audioUrl = null;
+            try {
+                audioUrl = await fetchAudioBlobUrl(did, blobRef);
+            } catch (e) { btn.classList.remove('playing'); if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); } return; }
+            const audio = document.createElement('audio');
+            audio.className = 'album-cover-audio';
+            audio.src = audioUrl;
+            audio.autoplay = true;
+            audio.controls = true;
+            audio.style.display = 'none';
+            btn.parentElement.appendChild(audio);
+            audio.play();
+            audio.onended = () => {
+                btn.classList.remove('playing');
+                if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); }
+                try { audio.remove(); } catch {}
+            };
+            audio.onpause = () => {
+                btn.classList.remove('playing');
+                if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); }
+                try { audio.remove(); } catch {}
+            };
+        });
+    });
+    // Title click: single post
+    document.querySelectorAll('.album-title-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const postUri = link.getAttribute('data-post-uri');
+            if (postUri) {
+                setPostParamInUrl(postUri);
+                renderSinglePostView(postUri);
+            }
+        });
+    });
+    // Artist click: artist page
+    document.querySelectorAll('.album-artist-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const did = link.getAttribute('data-did');
+            if (did) {
+                renderArtistPage(did);
+            }
+        });
+    });
+}
