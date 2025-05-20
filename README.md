@@ -28,9 +28,9 @@
   - fallback to `<audio>` for large files
 
 
-## Live Demo
+## Live Beta
 <a href="https://soundsky.cloud">
-  <img src="https://github.com/user-attachments/assets/e0642e37-58b8-4c49-9499-3e79b80116fa" width="100%" >
+  <img src="https://github.com/user-attachments/assets/4c93ebcc-5a22-47fb-9c73-d270609658a3" width="100%" >
 </a>
 
 
