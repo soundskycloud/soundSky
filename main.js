@@ -630,10 +630,10 @@ if (audioPostForm) {
                 const encoder = new TextEncoder();
                 const textBytes = encoder.encode(text);
                 // Find the byteStart of 'soundSky' (last occurrence)
-                const soundSkyIdx = text.lastIndexOf('soundSky');
+                const soundSkyIdx = text.lastIndexOf('Play on SoundSky');
                 // Compute byteStart by encoding up to that index
                 const byteStart = encoder.encode(text.slice(0, soundSkyIdx)).length;
-                const byteEnd = byteStart + encoder.encode('soundSky').length;
+                const byteEnd = byteStart + encoder.encode('Play on SoundSky').length;
                 facets.push({
                     index: { byteStart, byteEnd },
                     features: [
