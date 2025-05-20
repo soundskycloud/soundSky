@@ -7,7 +7,7 @@
 
 **sounSky** is a very simple browser _client-side_ bsky client specialized for audio and music. It allows uploading, sharing and discovering music posted on bluesky with a dedicated interface. All data is stored on the users's PDS without any external dependency. 
 
-**soundSky** has no servers. New _soundSkies_ can be created by forking this repository and serving its contents, anywhere.
+**soundSky** has no servers. New _soundSkies_ can be created by forking and serving this repository.
 
 #### Status
 👉 Login with bsky at [soundsky.cloud](https://soundsky.cloud)<br>
