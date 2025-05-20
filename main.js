@@ -92,6 +92,10 @@ window.addEventListener('DOMContentLoaded', async () => {
             loginForm.style.display = 'none';
             document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
             setCurrentUserAvatar();
+            // --- Notification system setup (after agent is ready) ---
+            setupNotificationDropdown();
+            setupNotificationNavRefresh();
+            setTimeout(fetchNotifications, 500);
             const postParam = getPostParamFromUrl();
             const artistParam = getArtistParamFromUrl();
             const searchParam = getSearchParamFromUrl();
@@ -2208,5 +2212,170 @@ async function renderLikedPostsAlbumView() {
                 renderArtistPage(did);
             }
         });
+    });
+}
+
+// --- Notification Support ---
+let latestNotifications = [];
+let hasNewNotifications = false;
+let lastSeenNotifs = null;
+
+async function fetchNotifications() {
+    if (!agent || !agent.session) return;
+    try {
+        const res = await agent.api.app.bsky.notification.listNotifications({ limit: 20 });
+        latestNotifications = res.data.notifications || [];
+        // Find if there are any unread notifications
+        hasNewNotifications = latestNotifications.some(n => !n.isRead);
+        // Update bell icon
+        updateNotificationBell();
+        // Render dropdown if open
+        renderNotificationDropdown();
+    } catch (e) {
+        // fallback: show error in dropdown
+        latestNotifications = [];
+        hasNewNotifications = false;
+        updateNotificationBell();
+        renderNotificationDropdown('Failed to load notifications');
+    }
+}
+
+function updateNotificationBell() {
+    const bell = document.getElementById('notification-bell');
+    if (!bell) return;
+    if (hasNewNotifications) {
+        bell.classList.add('text-orange-500');
+    } else {
+        bell.classList.remove('text-orange-500');
+    }
+}
+
+function renderNotificationDropdown(errorMsg) {
+    const dropdown = document.getElementById('notification-dropdown');
+    if (!dropdown) return;
+    if (errorMsg) {
+        dropdown.innerHTML = `<div class='p-3 text-sm text-red-500'>${errorMsg}</div>`;
+        return;
+    }
+    if (!latestNotifications.length) {
+        dropdown.innerHTML = `<div class='p-3 text-sm text-gray-500'>No notifications yet.</div>`;
+        return;
+    }
+    dropdown.innerHTML = latestNotifications.map(n => {
+        const actor = n.author || {};
+        const avatar = actor.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${actor.did || ''}/@jpeg`;
+        const name = actor.displayName || actor.handle || 'Unknown';
+        let reason = n.reason;
+        let reasonText = '';
+        let songTitle = '';
+        let postUri = '';
+        // Try to extract song title and post URI for all types
+        if (n.subject && n.subject.record && typeof n.subject.record.text === 'string') {
+            songTitle = n.subject.record.text.split('\n')[0].slice(0, 60);
+        }
+        if (n.subject && n.subject.uri) {
+            postUri = n.subject.uri;
+        } else if (n.record && n.record.subject && n.record.subject.uri) {
+            postUri = n.record.subject.uri;
+        }
+        // Compose reason text
+        if (['like','repost','reply','mention'].includes(reason)) {
+            reasonText = songTitle ? `${reason === 'like' ? 'liked' : reason === 'repost' ? 'reposted' : reason === 'reply' ? 'replied to' : 'mentioned you in'} \"${songTitle}\"` : `${reason === 'like' ? 'liked' : reason === 'repost' ? 'reposted' : reason === 'reply' ? 'replied to' : 'mentioned you in'} your post`;
+        } else if (reason === 'follow') {
+            reasonText = 'followed you';
+        } else {
+            reasonText = reason;
+        }
+        // Show a snippet of the post text if available
+        let postText = '';
+        if (n.subject && n.subject.record && typeof n.subject.record.text === 'string') {
+            postText = n.subject.record.text.slice(0, 80);
+        } else if (n.record && n.record.text && reason === 'follow') {
+            postText = '';
+        } else if (n.record && n.record.text) {
+            postText = n.record.text.slice(0, 80);
+        }
+        let time = '';
+        if (n.indexedAt) time = formatRelativeTime(n.indexedAt);
+        // Make row clickable if postUri exists
+        const rowAttrs = postUri ? `class='notification-row cursor-pointer flex items-start gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-700 ${n.isRead ? '' : 'bg-orange-50 dark:bg-orange-900'}' data-post-uri='${postUri}'` : `class='flex items-start gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-700 ${n.isRead ? '' : 'bg-orange-50 dark:bg-orange-900'}'`;
+        return `<div ${rowAttrs}>
+            <img src='${avatar}' class='h-8 w-8 rounded-full' alt='${name}' onerror="this.onerror=null;this.src='/favicon.ico';">
+            <div class='flex-1 min-w-0'>
+                <div class='font-medium text-gray-900 dark:text-gray-100 text-sm'>${name} <span class='text-gray-500 font-normal'>${reasonText}</span></div>
+                ${postText ? `<div class='text-xs text-gray-500 truncate'>${postText}</div>` : ''}
+                <div class='text-xs text-gray-400 mt-1'>${time}</div>
+            </div>
+        </div>`;
+    }).join('');
+    // Attach click handler robustly
+    setTimeout(() => {
+        document.querySelectorAll('.notification-row').forEach(row => {
+            row.onclick = function(e) {
+                const postUri = row.getAttribute('data-post-uri');
+                if (postUri) {
+                    setPostParamInUrl(postUri);
+                    renderSinglePostView(postUri);
+                    dropdown.classList.add('hidden');
+                }
+            };
+        });
+    }, 0);
+}
+
+// Show/hide dropdown
+function setupNotificationDropdown() {
+    const btn = document.getElementById('notification-btn');
+    const dropdown = document.getElementById('notification-dropdown');
+    if (!btn || !dropdown) return;
+    let open = false;
+    btn.onclick = async function(e) {
+        e.stopPropagation();
+        open = !open;
+        if (open) {
+            dropdown.classList.remove('hidden');
+            await fetchNotifications();
+            // Mark as seen
+            markNotificationsSeen();
+        } else {
+            dropdown.classList.add('hidden');
+        }
+    };
+    // Hide dropdown on outside click
+    document.addEventListener('click', function(e) {
+        if (!dropdown.classList.contains('hidden')) {
+            if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.add('hidden');
+                open = false;
+            }
+        }
+    });
+}
+
+async function markNotificationsSeen() {
+    try {
+        await agent.api.app.bsky.notification.updateSeen({ seenAt: new Date().toISOString() });
+        hasNewNotifications = false;
+        updateNotificationBell();
+    } catch (e) {}
+}
+
+// Fetch notifications on navigation (after each link click)
+function setupNotificationNavRefresh() {
+    // Listen for navigation events (sidebar/topnav/artist/title links)
+    const navIds = ['nav-feed', 'nav-discover', 'nav-likes', 'topnav-feed', 'topnav-discover'];
+    navIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('click', () => {
+                setTimeout(fetchNotifications, 500);
+            });
+        }
+    });
+    // Also refresh on artist/title link clicks in album grid
+    document.addEventListener('click', function(e) {
+        if (e.target && (e.target.classList.contains('album-title-link') || e.target.classList.contains('album-artist-link'))) {
+            setTimeout(fetchNotifications, 500);
+        }
     });
 }
