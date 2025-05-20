@@ -3,11 +3,15 @@
 </a>
 
 ## SoundSky ☁️
-> ATProto/bsky based Soundcloud Alternative for Indie Music Makers 
+> ATProto/bsky based Soundcloud Alternative for Indie Music Makers
+
+**sounSky** is a very simple browser _client-side_ bsky client specialized for audio and music. It allows uploading, sharing and discovering music posted on bluesky with a dedicated interface. All data is stored on the users's PDS without any external dependency. 
+
+**soundSky** has no servers. New _soundSkies_ can be created by forking this repository and serving its contents, anywhere.
 
 #### Status
-👉 Live at [soundsky.cloud](https://soundsky.cloud)<br>
-🔥 Buggy & Experimental <br>
+👉 Login with bsky at [soundsky.cloud](https://soundsky.cloud)<br>
+🔥 Experimental! Please report issues<br>
 
 ##### Features
 - Infraless: exists on top of [bsky.social](https://bsky.social) auth & blob storage
