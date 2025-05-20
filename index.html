@@ -252,6 +252,16 @@
                     <button id="logout-btn" class="ml-2 px-3 py-1 text-xs text-gray-600 rounded hover:bg-gray-100 flex items-center" title="Logout">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
+                    <!-- Notification Button -->
+                    <div class="relative" id="notification-container">
+                      <button id="notification-btn" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none relative" title="Notifications">
+                        <i id="notification-bell" class="fas fa-bell"></i>
+                        <span id="notification-badge" class="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 hidden">!</span>
+                      </button>
+                      <div id="notification-dropdown" class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 hidden" style="min-width:260px;max-height:420px;overflow-y:auto;">
+                        <div class="p-3 text-sm text-gray-500">Loading notifications...</div>
+                      </div>
+                    </div>
                     <!-- User avatar -->
                     <button class="flex items-center text-sm rounded-full focus:outline-none">
                         <img id="current-user-avatar" class="h-8 w-8 rounded-full" src="/default-avatar.png" alt="User profile">
