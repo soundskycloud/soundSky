@@ -30,7 +30,7 @@
 
 ## Live Beta
 <a href="https://soundsky.cloud">
-  <img src="https://github.com/user-attachments/assets/4c93ebcc-5a22-47fb-9c73-d270609658a3" width="100%" >
+  <img src="https://github.com/user-attachments/assets/f469ba56-8470-4164-8ee6-1f58e99bbd29" width="600" >
 </a>
 
 
