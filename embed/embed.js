@@ -58,6 +58,15 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
   return URL.createObjectURL(audioBlob);
 }
 
+// Add this helper for play counter
+async function incrementCount(namespace, key) {
+  const url = `https://counterapi.com/api/${namespace}/play/${key}?time=${Date.now()}`;
+  const response = await fetch(url, { method: 'GET' });
+  if (!response.ok) throw new Error('Failed to increment count');
+  const data = await response.json();
+  return data.value;
+}
+
 async function renderEmbedPlayer(uri) {
   try {
     const res = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}`);
@@ -67,49 +76,97 @@ async function renderEmbedPlayer(uri) {
       container.innerHTML = '<div style="color:red">Track not found.</div>';
       return;
     }
-    // Extract audio info
-    let embed = post.record && post.record.embed;
-    let fileEmbed = null;
-    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-    if (!fileEmbed || !fileEmbed.file || !fileEmbed.file.mimeType.startsWith('audio/')) {
+    // --- Lexicon-aware: check for soundskyid tag ---
+    let tags = post.record && post.record.tags;
+    let soundskyRkey = null;
+    if (tags && Array.isArray(tags)) {
+      for (const tag of tags) {
+        if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+          soundskyRkey = tag.split('=')[1];
+          break;
+        }
+      }
+    }
+    let lexiconRecord = null;
+    if (soundskyRkey) {
+      // Fetch lexicon record via public API
+      const did = post.author.did;
+      try {
+        const lexRes = await fetch(`https://public.api.bsky.app/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=cloud.soundsky.audio&rkey=${encodeURIComponent(soundskyRkey)}`);
+        const lexData = await lexRes.json();
+        if (lexData && lexData.value) {
+          lexiconRecord = lexData.value;
+        }
+      } catch (err) {
+        lexiconRecord = null;
+      }
+    }
+    // --- Extract audio and artwork ---
+    let userDid = post.author.did;
+    let artworkUrl = '';
+    let audioBlobRef = null;
+    let audioSize = null;
+    let title = '';
+    let artist = '';
+    if (lexiconRecord) {
+      // Lexicon: use lexicon fields
+      if (lexiconRecord.artwork && lexiconRecord.artwork.ref) {
+        const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
+        artworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+      }
+      if (lexiconRecord.audio && lexiconRecord.audio.ref) {
+        audioBlobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
+        audioSize = lexiconRecord.audio.size;
+      }
+      title = lexiconRecord.metadata?.title || lexiconRecord.text || '';
+      artist = lexiconRecord.metadata?.artist || post.author.displayName || post.author.handle || '';
+    } else {
+      // Legacy: fallback to old logic
+      let embed = post.record && post.record.embed;
+      let fileEmbed = null;
+      if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+      else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+      if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        let blobRef = fileEmbed.file.ref;
+        if (blobRef && typeof blobRef === 'object') {
+          if (blobRef['$link']) {
+            blobRef = blobRef['$link'];
+          } else if (typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+            blobRef = blobRef.toString();
+          } else {
+            blobRef = '';
+          }
+        }
+        if (typeof blobRef === 'string') {
+          audioBlobRef = blobRef;
+        }
+        audioSize = fileEmbed.file.size;
+      }
+      artworkUrl = extractArtworkUrl(post);
+      title = post.record?.text || '';
+      artist = post.author?.displayName || post.author?.handle || '';
+    }
+    if (!audioBlobRef) {
       container.innerHTML = '<div style="color:red">No audio file found in this post.</div>';
       return;
     }
-    // Fix: ensure blobRef is a string
-    let blobRef = fileEmbed.file.ref;
-    if (blobRef && typeof blobRef === 'object') {
-      if (blobRef['$link']) {
-        blobRef = blobRef['$link'];
-      } else if (typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
-        blobRef = blobRef.toString();
-      } else {
-        console.log('Unknown blobRef object (no $link):', blobRef);
-        blobRef = '';
-      }
-    }
-    if (typeof blobRef !== 'string') {
-      console.log('blobRef is not a string after extraction:', blobRef);
-      blobRef = '';
-    }
-    const userDid = post.author.did;
-    let artworkUrl = extractArtworkUrl(post);
-    const isLargeFile = fileEmbed.file.size > 10 * 1024 * 1024;
+    const isLargeFile = audioSize > 10 * 1024 * 1024;
     // Fetch audio blob immediately
     let audioBlobUrl;
     try {
-      audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
+      audioBlobUrl = await fetchAudioBlobUrl(userDid, audioBlobRef);
     } catch (e) {
       container.innerHTML = '<div style="color:red">Audio unavailable due to Bluesky CORS restrictions.</div>';
       return;
     }
-    updateMetaTags(post, audioBlobUrl, artworkUrl);
+    updateMetaTags({ record: { text: title }, author: { displayName: artist } }, audioBlobUrl, artworkUrl);
     // Render player UI (no lazy, no placeholder)
-    container.innerHTML = renderMinimalPlayer(post, { lazy: false, isLargeFile });
+    container.innerHTML = renderMinimalPlayer({ record: { text: title }, author: { displayName: artist } }, { lazy: false, isLargeFile });
     // Setup player immediately
     const playBtn = document.getElementById('embed-play-btn');
     const playIcon = document.getElementById('embed-play-icon');
     const waveformDiv = document.getElementById('embed-waveform');
+    let hasCountedPlay = false;
     if (isLargeFile) {
       // Fallback <audio> for large files
       const fallbackAudio = document.createElement('audio');
@@ -131,6 +188,10 @@ async function renderEmbedPlayer(uri) {
           if (fallbackAudio.paused) {
             fallbackAudio.play();
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+            if (!hasCountedPlay) {
+              incrementCount('soundskycloud', post.cid).catch(() => {});
+              hasCountedPlay = true;
+            }
           } else {
             fallbackAudio.pause();
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
@@ -154,6 +215,10 @@ async function renderEmbedPlayer(uri) {
             } else {
               ws.play();
               playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+              if (!hasCountedPlay) {
+                incrementCount('soundskycloud', post.cid).catch(() => {});
+                hasCountedPlay = true;
+              }
             }
           };
           window._embedWavesurfer.on('finish', () => {
