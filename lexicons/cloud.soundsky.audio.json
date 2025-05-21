@@ -1,0 +1,193 @@
+{
+  "lexicon": 1,
+  "id": "cloud.soundsky.audio",
+  "description": "SoundSky audio track record format",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An audio track post with metadata",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "audio", "createdAt"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Track title and description",
+            "maxLength": 300,
+            "maxGraphemes": 300
+          },
+          "audio": {
+            "type": "blob",
+            "description": "Audio file blob",
+            "accept": ["audio/mpeg", "audio/mp3"]
+          },
+          "artwork": {
+            "type": "blob",
+            "description": "Cover artwork image",
+            "accept": ["image/jpeg", "image/png", "image/gif"],
+            "required": false
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Track metadata",
+            "required": ["title"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Track title",
+                "maxLength": 100
+              },
+              "artist": {
+                "type": "string",
+                "description": "Artist name",
+                "maxLength": 100,
+                "required": false
+              },
+              "album": {
+                "type": "string",
+                "description": "Album name",
+                "maxLength": 100,
+                "required": false
+              },
+              "genre": {
+                "type": "string",
+                "description": "Track genre",
+                "maxLength": 50,
+                "required": false
+              },
+              "year": {
+                "type": "integer",
+                "description": "Release year",
+                "required": false
+              },
+              "bpm": {
+                "type": "integer",
+                "description": "Beats per minute",
+                "required": false
+              },
+              "key": {
+                "type": "string",
+                "description": "Musical key",
+                "maxLength": 10,
+                "required": false
+              },
+              "isrc": {
+                "type": "string",
+                "description": "International Standard Recording Code",
+                "maxLength": 20,
+                "required": false
+              },
+              "license": {
+                "type": "string",
+                "description": "License type",
+                "maxLength": 100,
+                "required": false
+              },
+              "tags": {
+                "type": "array",
+                "description": "Track tags",
+                "items": { "type": "string" },
+                "required": false
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when the track was posted"
+          },
+          "mirrorPost": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "URI of the associated standard bsky post (for discovery)",
+            "required": false
+          }
+        }
+      }
+    },
+    "stats": {
+      "type": "record",
+      "description": "Statistics for a track",
+      "key": "stats",
+      "record": {
+        "type": "object",
+        "required": ["trackUri", "plays"],
+        "properties": {
+          "trackUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "URI of the track"
+          },
+          "plays": {
+            "type": "integer",
+            "description": "Number of plays"
+          },
+          "lastPlayedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp of last play",
+            "required": false
+          },
+          "uniqueListeners": {
+            "type": "integer",
+            "description": "Number of unique listeners",
+            "required": false
+          }
+        }
+      }
+    },
+    "playlist": {
+      "type": "record",
+      "description": "A collection of tracks",
+      "key": "plid",
+      "record": {
+        "type": "object",
+        "required": ["name", "tracks", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Playlist name",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "description": "Playlist description",
+            "maxLength": 300,
+            "required": false
+          },
+          "artwork": {
+            "type": "blob",
+            "description": "Playlist cover image",
+            "accept": ["image/jpeg", "image/png", "image/gif"],
+            "required": false
+          },
+          "tracks": {
+            "type": "array",
+            "description": "List of track URIs",
+            "items": {
+              "type": "string",
+              "format": "at-uri"
+            }
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the playlist is public",
+            "default": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when the playlist was created"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when the playlist was last updated",
+            "required": false
+          }
+        }
+      }
+    }
+  }
+} 
