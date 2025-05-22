@@ -69,7 +69,7 @@ function renderSidebarLikedSongs(likedAudioPosts) {
 async function fetchAndRenderSidebarLikedSongs() {
     if (!agent || !agent.session || !agent.session.did) return;
     try {
-        const res = await agent.api.app.bsky.feed.getActorLikes({ actor: agent.session.did, limit: 30 });
+        const res = await agent.api.app.bsky.feed.getActorLikes({ actor: agent.session.did, limit: 8 });
         let likedPosts = res.data?.feed || [];
         // Filter for audio posts
         likedPosts = filterAudioPosts(likedPosts);
