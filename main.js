@@ -693,12 +693,12 @@ if (audioPostForm) {
             // Collect metadata fields
             const metaTitle = document.getElementById('meta-title').value.trim();
             const metaArtist = document.getElementById('meta-artist').value.trim();
-            const metaAlbum = document.getElementById('meta-album').value.trim();
-            const metaGenre = document.getElementById('meta-genre').value.trim();
-            const metaYear = document.getElementById('meta-year').value.trim();
-            const metaBpm = document.getElementById('meta-bpm').value.trim();
-            const metaKey = document.getElementById('meta-key').value.trim();
-            const metaIsrc = document.getElementById('meta-isrc').value.trim();
+            const metaAlbum = document.getElementById('meta-album')?.value.trim();
+            const metaGenre = document.getElementById('meta-genre')?.value.trim();
+            const metaYear = document.getElementById('meta-year')?.value.trim();
+            const metaBpm = document.getElementById('meta-bpm')?.value.trim();
+            const metaKey = document.getElementById('meta-key')?.value.trim();
+            const metaIsrc = document.getElementById('meta-isrc')?.value.trim();
             const metaLicense = document.getElementById('meta-license').value.trim();
             const metaTags = document.getElementById('meta-tags').value.trim();
             const caption = audioCaptionInput.value || '';
@@ -734,7 +734,13 @@ if (audioPostForm) {
             if (metadata.tags && Array.isArray(metadata.tags)) tags.push(...metadata.tags);
             // Add Play on SoundSky link as a facet
             let postText = caption || '';
-            const playerUrl = `https://soundsky.cloud/?post=${encodeURIComponent(lexRes.uri)}`;
+            // After posting, search for the post with the soundskyid tag and use its URI for sharing/embed links
+            let bskyPostUri = '';
+            try {
+                const searchRes = await agent.api.app.bsky.feed.searchPosts({ q: `soundskyid=${rkey}`, limit: 1 });
+                bskyPostUri = searchRes.data?.feed?.[0]?.post?.uri || '';
+            } catch (e) { bskyPostUri = ''; }
+            const playerUrl = bskyPostUri ? `https://soundsky.cloud/?post=${encodeURIComponent(bskyPostUri)}` : '';
             const linkText = '\n\nPlay on SoundSky';
             if (!postText.endsWith(linkText)) postText += linkText;
             // Find byteStart/byteEnd for 'Play on SoundSky' (last occurrence)
@@ -1389,7 +1395,7 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     const commentCount = post.replyCount || 0;
     const likeBtnHtml = `<button class=\"like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
     const repostBtnHtml = `<button class=\"repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-reposted=\"${!!reposted}\" data-reposturi=\"${reposted ? reposted : ''}\"><i class=\"fa fa-retweet\"></i><span>${repostCount}</span></button>`;
-    const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\" data-post-uri=\"${post.uri}\"><i class=\"fa fa-comment\" data-post-uri=\"${post.uri}\"></i><span>${commentCount}</span></button>`;
+    const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\" data-post-uri=\"${post.uri}\"><i class=\"fa fa-comment\"></i><span>${commentCount}</span></button>`;
     // --- Share button for embed link ---
     // Always use the Bluesky post URI for the embed link, even for lexicon posts
     const embedUrl = `/embed/?url=${encodeURIComponent(post.uri)}`;
