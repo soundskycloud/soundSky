@@ -26,7 +26,7 @@
         }
       
         ::-webkit-scrollbar {
-          width: 8px; 
+          width: 8px; /* or height for horizontal */
         }
 
         ::-webkit-scrollbar-track {
@@ -34,13 +34,13 @@
         }
 
         ::-webkit-scrollbar-thumb {
-          background-color: rgba(0, 0, 0, 0.3); 
+          background-color: rgba(0, 0, 0, 0.3); /* adjust opacity as needed */
           border-radius: 4px;
         }
 
         /* Firefox-specific */
         * {
-          scrollbar-width: thin;
+          scrollbar-width: thin; /* or 'auto' or 'none' */
           scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
         }
         
@@ -171,7 +171,7 @@
         <!-- Sidebar -->
         <div class="hidden md:flex md:flex-shrink-0">
             <div class="flex flex-col w-64 border-r border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
-                <div class="flex items-center h-16 px-4 border-gray-200">
+                <div class="flex items-center mt-4 h-16 px-4 border-gray-200">
                     <div class="flex items-center">
                         <i class="fas fa-wave-square text-blue-500 text-2xl mr-2"></i>
                         <span class="text-xl font-bold">SoundSky</span>
@@ -204,12 +204,12 @@
         
         <!-- Main content -->
         <div class="flex flex-col flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
-            <!-- Top navigation -->
+            <!-- Top navigation MOBILE VIEW -->
             <div class="flex items-center h-16 px-4 border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
                 <div class="flex items-left md:hidden">
                     <div class="flex items-center mr-4">
                         <i class="fas fa-wave-square text-blue-500 text-xl mr-2"></i>
-                        <span class="text-lg font-bold">SoundSky</span>
+                        <span class="text-lg font-bold">&nbsp;</span>
                     </div>
                 </div>
                 <!-- Search input: use all available flex space -->
