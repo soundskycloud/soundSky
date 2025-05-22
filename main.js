@@ -218,7 +218,7 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
           // The PDS URL is in the 'service' field of the DID document
           const pdsEndpoint = plcData.service.find(s => s.id === '#atproto_pds')?.serviceEndpoint;
           if (!pdsEndpoint) throw new Error("Could not find PDS endpoint in DID document");
-          console.log(`User's PDS: ${pdsEndpoint}`);
+          console.log(`PDS: ${pdsEndpoint}`);
           baseUrl = pdsEndpoint;
     } catch (e) {
         // fallback to default
@@ -270,6 +270,21 @@ function attachPostTitleLinkHandlers() {
             title._soundskyHandlerAttached = true;
         }
     });
+    // --- NEW: Attach click handler to .comment-post-btn to open single-post view ---
+    document.querySelectorAll('.comment-post-btn').forEach(btn => {
+        if (!btn._soundskyHandlerAttached) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const postCard = btn.closest('.post-card');
+                const postUri = postCard?.getAttribute('data-post-uri');
+                if (postUri) {
+                    setPostParamInUrl(postUri);
+                    renderSinglePostView(postUri);
+                }
+            });
+            btn._soundskyHandlerAttached = true;
+        }
+    });
 }
 
 // In artist link navigation, also increment _soundskyFeedGeneration (if you have a similar handler, do the same)
@@ -279,6 +294,7 @@ function attachPostTitleLinkHandlers() {
 let _soundskyFirstCardAppended = false;
 // --- Patch appendAudioPostCard to enforce strict lazy loading ---
 async function appendAudioPostCard(audioPost, feedGen) {
+    console.debug('[appendAudioPostCard] called for', audioPost);
     if (_soundskyFeedCancelled || feedGen !== _soundskyFeedGeneration) return;
     const post = audioPost.post || audioPost;
     const user = post.author;
@@ -286,6 +302,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
     let audioWaveformId = `waveform-${post.cid}`;
     let fileEmbed = null;
     let lexiconRecord = null;
+    let playCount = null;
     let useLexicon = false;
     // Check for soundskyid tag
     const tags = post.record && post.record.tags;
@@ -306,31 +323,46 @@ async function appendAudioPostCard(audioPost, feedGen) {
             if (lexRes.success && lexRes.record) {
                 lexiconRecord = lexRes.record;
                 useLexicon = true;
+                // Fetch play count from the latest record using getLexiconPlayCount
+                playCount = await getLexiconPlayCount({ post });
             } else {
                 useLexicon = false;
             }
         } catch (err) {
             useLexicon = false;
+            console.error('[appendAudioPostCard] Error fetching lexicon record for', post.uri, err);
         }
     }
     // For lexicon posts, set up the player to use the lexicon audio blob
-    if (useLexicon && lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-        // No need to set audioHtml here; handled by renderPostCard
-    } else {
-        // Legacy embed logic
+    // (audioHtml handled by renderPostCard)
+    // Legacy embed logic
+    if (!useLexicon) {
         const embed = post.record && post.record.embed;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             audioHtml = '';
         }
     }
     if (feedGen !== _soundskyFeedGeneration) return;
-    // Always pass lexiconRecord to renderPostCard if available
-    const cardHtml = renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null });
+    // Always pass lexiconRecord and playCount to renderPostCard if available
+    const cardHtml = await renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount });
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
-    feedContainer.appendChild(tempDiv.firstElementChild);
+    const cardEl = tempDiv.firstElementChild;
+    feedContainer.appendChild(cardEl);
+    if (lexiconRecord) {
+        const playBtn = cardEl.querySelector('.soundsky-play-btn');
+        if (playBtn) {
+            playBtn._soundskyPost = post;
+            playBtn._soundskyLexiconRecord = lexiconRecord;
+        }
+        const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
+        if (playCountEl) {
+            playCountEl.textContent = playCount;
+            // playCountEl.textContent = typeof playCount === 'number' ? playCount : (typeof lexiconRecord.stats?.plays === 'number' ? lexiconRecord.stats.plays : 0);
+        }
+    }
     if (!_soundskyFirstCardAppended) {
         feedLoading.classList.add('hidden');
         _soundskyFirstCardAppended = true;
@@ -348,6 +380,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
 
 // Update fetchSoundskyFeed to render each card as soon as it's ready
 async function fetchSoundskyFeed({ append = false, mode = 'home', q = false } = {}) {
+    console.debug('[fetchSoundskyFeed] called with', { append, mode, q });
     destroyAllWaveSurfers();
     feedLoading.classList.remove('hidden');
     if (!append) {
@@ -446,15 +479,19 @@ async function fetchSoundskyFeed({ append = false, mode = 'home', q = false } = 
 window.soundskyWavesurfers = window.soundskyWavesurfers || {};
 
 async function renderFeed(posts, { showLoadMore = false } = {}) {
-    // Clean up existing WaveSurfer instances
-    if (window.soundskyWavesurfers) {
-        Object.values(window.soundskyWavesurfers).forEach(ws => {
-            try { ws.destroy(); } catch {}
+    // DEBUG: Print all posts being processed
+    console.debug('[renderFeed] raw posts:', posts);
+    if (Array.isArray(posts)) {
+        posts.forEach((item, idx) => {
+            const post = item.post || item;
+            const tags = post.record && post.record.tags;
+            console.debug(`[renderFeed] Post[${idx}] uri:`, post.uri, 'tags:', tags);
         });
-        window.soundskyWavesurfers = {};
     }
     // Only render posts with audio content
     const audioPosts = filterAudioPosts(posts);
+    console.debug('[renderFeed] audioPosts after filterAudioPosts:', audioPosts);
+    console.debug('[renderFeed] audioPosts count:', audioPosts.length);
     if (!audioPosts.length) {
         feedContainer.innerHTML = `<div class="text-center text-gray-500 py-8">
             It's quiet in here - let's post some music or <a href="#" id="go-discover-link" class="text-blue-500 underline">follow other artists</a>.
@@ -472,19 +509,13 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
         }, 0);
         return;
     }
-    // Store info for initializing WaveSurfer after DOM update
-    const wavesurferInitQueue = [];
-    let html = '';
-    // --- Lexicon-aware rendering ---
-    const postCards = await Promise.all(audioPosts.map(async item => {
+    // --- Batch fetch lexicon play counts ---
+    // 1. Collect all posts with soundskyid
+    const lexiconPosts = [];
+    const postUriToSoundsky = {};
+    for (const item of audioPosts) {
         const post = item.post || item;
         const user = post.author;
-        let audioHtml = '';
-        let audioBlobUrl = null;
-        let audioWaveformId = `waveform-${post.cid}`;
-        let fileEmbed = null;
-        let lexiconRecord = null;
-        // Check for soundskyid tag
         const tags = post.record && post.record.tags;
         let soundskyRkey = null;
         if (tags && Array.isArray(tags)) {
@@ -495,45 +526,94 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
                 }
             }
         }
-        console.log('[SoundSky] Post:', post.uri, 'soundskyid:', soundskyRkey);
         if (soundskyRkey) {
+            lexiconPosts.push({ post, user, soundskyRkey });
+            postUriToSoundsky[post.uri] = { did: user.did, rkey: soundskyRkey };
+            console.debug('[renderFeed] Collected lexicon post:', { uri: post.uri, did: user.did, rkey: soundskyRkey });
+        }
+    }
+    console.debug('[renderFeed] lexiconPosts count:', lexiconPosts.length);
+    // 2. Batch fetch all lexicon records (with concurrency limit)
+    const BATCH_LIMIT = 5;
+    async function batchGetLexiconRecords(lexiconPosts) {
+        const results = {};
+        let i = 0;
+        async function fetchOne({ post, user, soundskyRkey }) {
             try {
-                const did = user.did;
-                const lexRes = await fetchSoundSkyRecord(agent, { did, rkey: soundskyRkey });
-                if (lexRes.success && lexRes.record) {
-                    lexiconRecord = lexRes.record;
-                    console.log('[SoundSky] Lexicon record for', post.uri, lexiconRecord);
-                } else {
-                    console.warn('[SoundSky] No lexicon record found for', post.uri, lexRes);
-                }
+                console.debug('[batchGetLexiconRecords] Fetching:', { did: user.did, rkey: soundskyRkey, postUri: post.uri });
+                const res = await agent.api.com.atproto.repo.getRecord({
+                    repo: user.did,
+                    collection: 'cloud.soundsky.audio',
+                    rkey: soundskyRkey
+                });
+                const record = res.data.value;
+                let playCount = 0;
+                if (record && record.stats && typeof record.stats.plays === 'number') playCount = record.stats.plays;
+                results[post.uri] = { playCount, lexiconRecord: record };
+                console.debug('[batchGetLexiconRecords] Success:', { postUri: post.uri, playCount, record });
             } catch (err) {
-                console.error('[SoundSky] Error fetching lexicon record for', post.uri, err);
-                lexiconRecord = null;
+                results[post.uri] = { playCount: 0, lexiconRecord: null };
+                console.error('[batchGetLexiconRecords] Error for', post.uri, err);
             }
+        }
+        while (i < lexiconPosts.length) {
+            const batch = lexiconPosts.slice(i, i + BATCH_LIMIT);
+            await Promise.all(batch.map(fetchOne));
+            i += BATCH_LIMIT;
+        }
+        return results;
+    }
+    const lexiconMap = await batchGetLexiconRecords(lexiconPosts);
+    // 3. Render posts, passing playCount and lexiconRecord if available
+    const wavesurferInitQueue = [];
+    let html = '';
+    const postCards = await Promise.all(audioPosts.map(async item => {
+        const post = item.post || item;
+        const user = post.author;
+        let audioHtml = '';
+        let audioBlobUrl = null;
+        let audioWaveformId = `waveform-${post.cid}`;
+        let fileEmbed = null;
+        let lexiconRecord = null;
+        let playCount = null;
+        let soundskyRkey = null;
+        const tags = post.record && post.record.tags;
+        if (tags && Array.isArray(tags)) {
+            for (const tag of tags) {
+                if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+                    soundskyRkey = tag.split('=')[1];
+                    break;
+                }
+            }
+        }
+        // Use batch-fetched lexicon data if available
+        if (lexiconMap[post.uri]) {
+            lexiconRecord = lexiconMap[post.uri].lexiconRecord;
+            playCount = await getLexiconPlayCount({ post });
         }
         // For lexicon posts, let renderPostCard handle player/artwork
         if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
             // No need to set audioHtml here
         } else {
             // Legacy embed logic
-            const embed = post.record && post.record.embed;
-            if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-            else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-            if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-                const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-                try {
-                    audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
-                } catch (e) {
-                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
-                }
-                if (audioBlobUrl && audioWaveformId) {
-                    audioHtml = `
-                      <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">\n                        <!--IMG-FEED-->\n                        <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${audioWaveformId}\">\n                          <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                            <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                            <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n                          </svg>\n                        </button>\n                        <div id=\"${audioWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative\">\n                          <div class=\"wavesurfer-time\">0:00</div>\n                          <div class=\"wavesurfer-duration\">0:00</div>\n                          <div class=\"wavesurfer-hover\"></div>\n                        </div>\n                      </div>\n                    `;
-                    wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
-                }
+        const embed = post.record && post.record.embed;
+        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            try {
+                audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
+            } catch (e) {
+                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
+            }
+            if (audioBlobUrl && audioWaveformId) {
+                audioHtml = `
+                          <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">\n                        <!--IMG-FEED-->\n                        <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${audioWaveformId}\">\n                          <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                            <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                            <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n                          </svg>\n                        </button>\n                        <div id=\"${audioWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative\">\n                          <div class=\"wavesurfer-time\">0:00</div>\n                          <div class=\"wavesurfer-duration\">0:00</div>\n                          <div class=\"wavesurfer-hover\"></div>\n                        </div>\n                      </div>\n                    `;
+                wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
             }
         }
-        return renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord });
+    }
+        return renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, soundskyRkey, playCount });
     }));
     html = postCards.join('');
     // At the end, add Load More button if needed
@@ -552,7 +632,6 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             loadMoreBtn.onclick = () => fetchSoundskyFeed({ append: true });
         }
     }
-    addSinglePostClickHandlers();
 }
 
 // Only declare audioPostForm once at the top
@@ -773,6 +852,7 @@ async function renderSinglePostView(postUri) {
     const user = post.author;
     let audioWaveformId = `waveform-${post.cid}`;
     let lexiconRecord = null;
+    let playCount = null;
     // Check for soundskyid tag
     const tags = post.record && post.record.tags;
     let soundskyRkey = null;
@@ -790,18 +870,68 @@ async function renderSinglePostView(postUri) {
             const lexRes = await fetchSoundSkyRecord(agent, { did, rkey: soundskyRkey });
             if (lexRes.success && lexRes.record) {
                 lexiconRecord = lexRes.record;
+                playCount = await getLexiconPlayCount({ post });
             }
         } catch (err) {
             lexiconRecord = null;
         }
     }
-    // Always pass lexiconRecord to renderPostCard if available
+    // Prepare artwork HTML for large display if available
+    let largeArtworkHtml = '';
+    let displayArtworkUrl = '';
+    if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
+        const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
+        displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+    } else {
+        // Legacy artwork logic
+        let embed = post.record && post.record.embed;
+        let images = [];
+        if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+            images = embed.media.images;
+        } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+            images = embed.images;
+        }
+        if (images.length > 0) {
+            const img = images[0];
+            if (img.image && img.image.ref) {
+                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+            }
+        }
+    }
+    if (displayArtworkUrl) {
+        largeArtworkHtml = `<div class="singlepost-artwork-wrapper p-4" style="width:100%;max-width:100%;text-align:center;"><img src="${displayArtworkUrl}" alt="Artwork" style="max-width:100%;max-height:340px;border-radius:18px;box-shadow:0 2px 16px rgba(0,0,0,0.10);background:#f3f4f6;object-fit:contain;"></div>`;
+    }
+    // Prepare title/artist row
+    let titleRowHtml = '';
+    let displayTitle = '';
+    let displayArtist = '';
+    if (lexiconRecord && lexiconRecord.metadata) {
+        displayTitle = lexiconRecord.metadata.title || '';
+        displayArtist = lexiconRecord.metadata.artist || '';
+    } else {
+        displayTitle = (post.record?.text || '').split('\n')[0].slice(0, 100);
+        displayArtist = user.displayName || user.handle || '';
+    }
+    /*
+        if (displayArtist && displayTitle) {
+            titleRowHtml = `<div class="singlepost-title-row" style="font-size:1.35rem;font-weight:700;text-align:center;margin-bottom:0.7rem;">${displayArtist}: <span style="font-weight:400;">${displayTitle}</span></div>`;
+        } else if (displayTitle) {
+            titleRowHtml = `<div class="singlepost-title-row" style="font-size:1.35rem;font-weight:700;text-align:center;margin-bottom:0.7rem;">${displayTitle}</div>`;
+        } else if (displayArtist) {
+            titleRowHtml = `<div class="singlepost-title-row" style="font-size:1.35rem;font-weight:700;text-align:center;margin-bottom:0.7rem;">${displayArtist}</div>`;
+        }
+    */
+    // Render the single post view layout
     document.getElementById('single-post-content').innerHTML = `
         <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-1 mb-8">
             <div class="p-4">
-                ${renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null })}
+                ${titleRowHtml}
+                ${largeArtworkHtml}
+                ${await renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId, hideArtwork: true }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount })}
             </div>
         </div>
+        <div id="comments-${post.cid}"></div>
     `;
     feedLoading.classList.add('hidden');
     // Setup lazy loader for lexicon or legacy audio
@@ -819,36 +949,109 @@ async function renderSinglePostView(postUri) {
             setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
         }
     }
-    // After rendering the single post, fetch and display comments
-    if (post && post.cid) {
-        const commentSection = document.getElementById(`comments-${post.cid}`);
-        if (commentSection) {
-            try {
-                const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
-                const replies = (threadRes.data.thread?.replies || []);
-                if (replies.length === 0) {
-                    commentSection.innerHTML = '<div class="text-gray-400 text-xs">No comments yet.</div>';
-                } else {
-                    commentSection.innerHTML = replies.map(reply => {
-                        const author = reply.post.author;
-                        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did}/@jpeg`;
-                        const name = author.displayName || author.handle || 'Unknown';
-                        const commentText = reply.post.record.text || '';
-                        const isOwnComment = agent.session && agent.session.did === author.did;
-                        const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
-                        // Like button for comment
-                        const liked = reply.post.viewer && reply.post.viewer.like;
-                        const likeCount = reply.post.likeCount || 0;
-                        const likeBtnHtml = `<button class=\"like-comment-btn flex items-center space-x-1 text-xs ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${reply.post.uri}\" data-cid=\"${reply.post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
-                        // Layout: avatar | comment+author | (spacer) | like+delete
-                        return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2\">${likeBtnHtml}${deleteBtn}</div></div>`;
-                    }).join('');
-                }
-            } catch (err) {
-                commentSection.innerHTML = '<div class="text-red-400 text-xs">Failed to load comments.</div>';
-            }
+    // After rendering the single post, render comments using the same logic as the feed
+    // Fetch the thread for comments (if not already available)
+    try {
+        await renderSinglePostComments(post);
+    } catch (err) {
+        const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
+        if (postCardContent) {
+            postCardContent.insertAdjacentHTML('beforeend', '<div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4"><div class="text-red-400 text-xs">Failed to load comments.</div></div>');
         }
     }
+    const cardEl = document.querySelector('#single-post-content .post-card');
+    if (lexiconRecord) {
+        const playBtn = cardEl.querySelector('.soundsky-play-btn');
+        if (playBtn) {
+            playBtn._soundskyPost = post;
+            playBtn._soundskyLexiconRecord = lexiconRecord;
+        }
+        const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
+        if (playCountEl) {
+            playCountEl.textContent = typeof playCount === 'number' ? playCount : (typeof lexiconRecord.stats?.plays === 'number' ? lexiconRecord.stats.plays : 0);
+        }
+    }
+}
+
+// --- Helper: Render the comment section for a single post (by post object) ---
+async function renderSinglePostComments(post) {
+    // Find the .p-4 content area inside the post card
+    const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
+    if (!postCardContent) return;
+    const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+    const replies = (threadRes.data.thread?.replies || []);
+    // Render the comment section using the correct markup and classes
+    const currentUserAvatar = agent.session?.did ? (document.getElementById('current-user-avatar')?.src || defaultAvatar) : defaultAvatar;
+    const commentBlockHtml = `
+      <div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <img src="${currentUserAvatar}" class="h-8 w-8 rounded-full" alt="Me" onerror="this.onerror=null;this.src='/favicon.ico';">
+          <form id="comment-form-${post.cid}" class="flex-1 flex items-center gap-2">
+            <input id="comment-input-${post.cid}" type="text" placeholder="Write a comment" class="flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none" maxlength="280" autocomplete="off">
+            <button id="comment-send-${post.cid}" type="submit" class="p-2 text-blue-500 hover:text-blue-600" title="Send">
+              <svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z" fill="currentColor"></path></svg>
+            </button>
+          </form>
+        </div>
+        <div id="comments-${post.cid}" class="space-y-2">
+          ${
+            replies.length === 0
+              ? '<div class=\"text-gray-400 text-xs\">No comments yet.</div>'
+              : replies.map(reply => {
+                  const author = reply.post.author;
+                  const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did || ''}/@jpeg`;
+                  const name = author.displayName || author.handle || 'Unknown';
+                  const commentText = reply.post.record.text || '';
+                  const isOwnComment = agent.session && agent.session.did === author.did;
+                  const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
+                  const liked = reply.post.viewer && reply.post.viewer.like;
+                  const likeCount = reply.post.likeCount || 0;
+                  const likeBtnHtml = `<button class=\"like-comment-btn flex items-center space-x-1 text-xs ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${reply.post.uri}\" data-cid=\"${reply.post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
+                  return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2\">${likeBtnHtml}${deleteBtn}</div></div>`;
+                }).join('')
+          }
+        </div>
+      </div>
+    `;
+    // Remove any old comment section (by id)
+    const oldCommentSection = postCardContent.querySelector(`#comments-${post.cid}`)?.parentElement;
+    if (oldCommentSection) oldCommentSection.remove();
+    // Insert the comment section at the end of .p-4
+    postCardContent.insertAdjacentHTML('beforeend', commentBlockHtml);
+    // --- Add direct event handler for the comment form (single-post view) ---
+    setTimeout(() => {
+        const commentForm = document.getElementById(`comment-form-${post.cid}`);
+        if (commentForm) {
+            commentForm.addEventListener('submit', async function(e) {
+                console.debug('[SinglePost] Comment form submit handler fired');
+                e.preventDefault();
+                const input = commentForm.querySelector('input[type="text"]');
+                if (!input) { console.debug('[SinglePost] No input found'); return; }
+                const text = input.value.trim();
+                if (!text) { console.debug('[SinglePost] No text entered'); return; }
+                commentForm.querySelector('button[type="submit"]').disabled = true;
+                try {
+                    await agent.post({
+                        text,
+                        reply: {
+                            root: { cid: post.cid, uri: post.uri },
+                            parent: { cid: post.cid, uri: post.uri }
+                        }
+                    });
+                    input.value = '';
+                    console.debug('[SinglePost] Comment posted, reloading comment section');
+                    await renderSinglePostComments(post);
+                } catch (err) {
+                    alert('Failed to post comment: ' + (err.message || err));
+                    console.error('[SinglePost] Failed to post comment:', err);
+                } finally {
+                    commentForm.querySelector('button[type="submit"]').disabled = false;
+                }
+            });
+        } else {
+            console.debug('[SinglePost] Comment form not found for direct handler');
+        }
+    }, 0);
 }
 
 // --- 3. Add renderArtistPage(did) ---
@@ -920,6 +1123,7 @@ async function renderArtistPage(did) {
             const user = post.author;
             let audioWaveformId = `waveform-${post.cid}`;
             let lexiconRecord = null;
+            let playCount = null;
             // Check for soundskyid tag
             const tags = post.record && post.record.tags;
             let soundskyRkey = null;
@@ -937,24 +1141,25 @@ async function renderArtistPage(did) {
                     const lexRes = await fetchSoundSkyRecord(agent, { did, rkey: soundskyRkey });
                     if (lexRes.success && lexRes.record) {
                         lexiconRecord = lexRes.record;
+                        playCount = await getLexiconPlayCount({ post });
                     }
                 } catch (err) {
                     lexiconRecord = null;
                 }
             }
-            html += renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null });
+            html += await renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount });
             // Setup lazy loader for lexicon or legacy audio
             if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
                 const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
                 lazyLoaders.push(() => setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0));
             } else {
                 // Legacy embed logic
-                let fileEmbed = null;
-                const embed = post.record && post.record.embed;
-                if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-                else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-                if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-                    const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            let fileEmbed = null;
+            const embed = post.record && post.record.embed;
+            if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+            else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+            if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+                const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
                     lazyLoaders.push(() => setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0));
                 }
             }
@@ -1064,7 +1269,8 @@ function filterAudioPosts(posts) {
 }
 
 // --- Utility: Render a post card (returns HTML string) ---
-function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = null }) {
+async function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = null, soundskyRkey = null, playCount = null }) {
+    // console.log('[renderPostCard] called for post:', { uri: post.uri, lexiconRecord, soundskyRkey, playCount });
     const did = user.did;
     let avatar = user.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${did}/@jpeg`;
     let displayTitle = '';
@@ -1094,23 +1300,28 @@ function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = n
             displayAudioBlob = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
             displayAudioSize = lexiconRecord.audio.size;
         }
+        // --- Play counter for custom lexicon posts ---
+        // Use playCount if provided, else fallback to stats.plays, else 0
+        if (typeof playCount !== 'number') {
+            playCount = 0;
+        }
     } else {
         displayText = post.record.text || '';
         displayTitle = displayText.split('\n')[0].slice(0, 100);
         displayArtist = user.displayName || user.handle || 'Unknown';
         // Legacy artwork logic
-        let embed = post.record && post.record.embed;
-        let images = [];
-        if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
-            images = embed.media.images;
-        } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
-            images = embed.images;
-        }
-        if (images.length > 0) {
-            const img = images[0];
-            let imgUrl = '';
-            if (img.image && img.image.ref) {
-                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+    let embed = post.record && post.record.embed;
+    let images = [];
+    if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+        images = embed.media.images;
+    } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+        images = embed.images;
+    }
+    if (images.length > 0) {
+        const img = images[0];
+        let imgUrl = '';
+        if (img.image && img.image.ref) {
+            const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
                 imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(blobRef)}`;
             }
             displayArtworkUrl = imgUrl;
@@ -1146,13 +1357,14 @@ function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = n
     if (isLexicon && options && options.lazyWaveformId && displayAudioBlob) {
         audioPlayerHtml = `
           <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">${artworkHtml}
-            <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${options.lazyWaveformId}\">\n              <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n              </svg>\n            </button>\n            <div id=\"${options.lazyWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder\">\n              <div class=\"soundsky-placeholder-content\">\n                <i class=\"fa fa-chart-simple\"></i>\n                <span>play to load</span>\n              </div>\n            </div>\n          </div>\n        `;
+            <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${options.lazyWaveformId}\" data-post-uri=\"${post.uri}\" data-did=\"${did}\" data-soundskyid=\"${soundskyRkey ? soundskyRkey : ''}\" data-lexicon=\"true\">\n          <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n            <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n            <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n          </svg>\n        </button>\n        <div id=\"${options.lazyWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder\">\n          <div class=\"soundsky-placeholder-content\">
+            <i class=\"fa fa-chart-simple\"></i>\n            <span>play to load</span>\n          </div>\n        </div>\n      </div>\n    `;
     } else if (audioHtml) {
         audioPlayerHtml = `${artworkHtml}${audioHtml}`;
     } else if (options && options.lazyWaveformId) {
         audioPlayerHtml = `
           <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">${artworkHtml}
-            <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${options.lazyWaveformId}\">\n              <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n              </svg>\n            </button>\n            <div id=\"${options.lazyWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder\">\n              <div class=\"soundsky-placeholder-content\">\n                <i class=\"fa fa-chart-simple\"></i>\n                <span>play to load</span>\n              </div>\n            </div>\n          </div>\n        `;
+            <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${options.lazyWaveformId}\" data-post-uri=\"${post.uri}\">\n              <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n              </svg>\n                                    </button>\n            <div id=\"${options.lazyWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative soundsky-waveform-placeholder\">\n              <div class=\"soundsky-placeholder-content\">\n                <i class=\"fa fa-chart-simple\"></i>\n                <span>play to load</span>\n                </div>\n            </div>\n        </div>\n    `;
     }
     // --- Title Row ---
     let titleRowHtml = '';
@@ -1166,7 +1378,7 @@ function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = n
         }
     } else {
         if (displayTitle || displayArtist) {
-            titleRowHtml = `<a href="#" class="post-title-link font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${post.uri}">${displayTitle}${displayArtist ? ' <span class=\\"text-gray-500 font-normal\\">by ' + displayArtist + '</span>' : ''}</a>`;
+            titleRowHtml = `<a href="#" class="post-title-link font-bold text-lg text-gray-900 dark:text-white mt-1 mb-1" data-post-uri="${post.uri}">${displayTitle}${displayArtist ? ' <span class=\"text-gray-500 font-normal\">by ' + displayArtist + '</span>' : ''}</a>`;
         }
     }
     // --- Social Buttons ---
@@ -1184,31 +1396,70 @@ function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = n
     if (agent && agent.session && agent.session.did && user.did === agent.session.did) {
         deleteBtnHtml = `<button class=\"delete-post-btn flex items-center space-x-1 text-sm text-red-500 hover:text-red-700\" data-uri=\"${post.uri}\" title=\"Delete post\"><i class=\"fa fa-trash\"></i></button>`;
     }
+    // --- Play Counter UI ---
+    let playCounterHtml = '';
+    if (isLexicon) {
+        playCounterHtml = `<div class=\"soundsky-playcount-row flex items-center text-gray-700 mr-3\"><i class=\"fa fa-play\"></i><span class=\"ml-1\">${playCount}</span></div>`;
+    } else {
+        playCounterHtml = `<img src=\"https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays&readOnly=false\" class=\"mr-3\">`;
+    }
     // --- Render ---
     return `
         <div class=\"bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out\" data-post-uri=\"${String(post.uri)}\">\n            <div class=\"p-4\">\n                <div class=\"flex items-start\">\n                    <img class=\"h-10 w-10 rounded-full\" src=\"${avatar}\" alt=\"${user.handle}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\">\n                    <div class=\"ml-3 flex-1\">
-                        <div class=\"flex items-center\">
-                            <button class=\"artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline\" data-did=\"${did}\">${user.displayName || user.handle || 'Unknown'}</button>
-                            <span class=\"mx-1 text-gray-500 dark:text-gray-400\">·</span>
-                            <span class=\"text-sm text-gray-500 dark:text-gray-400\">${formatRelativeTime(post.indexedAt)}</span>
-                        </div>
-                        ${titleRowHtml}
-                        ${audioPlayerHtml}
-                        <div class=\"mt-3 flex items-center space-x-4\">
-                            <img src=\"https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays&readOnly=false\">
-                        </div>
-                        <div class=\"mt-3 flex items-center space-x-3\">
-                            ${likeBtnHtml}
-                            ${repostBtnHtml}
-                            ${commentBtnHtml}
-                            ${debugBtnHtml}
-                            ${reportBtnHtml}
-                            ${deleteBtnHtml}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>\n    `;
+                        <div class=\"flex items-center\">\n                            <button class=\"artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline\" data-did=\"${did}\">${user.displayName || user.handle || 'Unknown'}</button>\n                            <span class=\"mx-1 text-gray-500 dark:text-gray-400\">·</span>\n                            <span class=\"text-sm text-gray-500 dark:text-gray-400\">${formatRelativeTime(post.indexedAt)}</span>\n                        </div>\n                        ${titleRowHtml}\n                        ${audioPlayerHtml}\n                        <div class=\"mt-3 flex items-center space-x-3\">\n                            ${playCounterHtml}\n                            ${likeBtnHtml}\n                            ${repostBtnHtml}\n                            ${commentBtnHtml}\n                            ${debugBtnHtml}\n                            ${reportBtnHtml}\n                            ${deleteBtnHtml}\n                        </div>\n                    </div>\n                </div>\n            </div>\n        </div>\n    `;
+}
+
+// --- New: Increment play count for custom lexicon posts ---
+async function incrementLexiconPlayCount(post) {
+    if (!post || !post.uri) return;
+    try {
+        const uriParts = String(post.uri).replace('at://', '').split('/');
+        if (uriParts.length !== 3) return;
+        const did = uriParts[0];
+        const collection = uriParts[1];
+        const rkey = uriParts[2];
+        // Fetch the latest record
+        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
+        const record = res.data.value;
+        // Ensure stats exists and increment
+        if (!record.stats) record.stats = {};
+        if (typeof record.stats.plays !== 'number') record.stats.plays = 0;
+        record.stats.plays++;
+        // Write back the updated record
+        await agent.api.com.atproto.repo.putRecord({
+            repo: did,
+            collection,
+            rkey,
+            record
+        });
+        // Update the UI immediately
+        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .flex.items-center.text-gray-700 span.ml-1`);
+        playCountEls.forEach(el => {
+            el.textContent = record.stats.plays;
+        });
+    } catch (err) {
+        console.error('Failed to increment play count:', err);
+    }
+}
+
+async function getLexiconPlayCount({ post, lexiconRecord, soundskyRkey }) {
+    if (!post || !post.uri) return;
+    try {
+        const uriParts = String(post.uri).replace('at://', '').split('/');
+        if (uriParts.length !== 3) return;
+        const did = uriParts[0];
+        const collection = uriParts[1];
+        const rkey = uriParts[2];
+        // Fetch the latest record
+        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
+        const record = res.data.value;
+
+        if (typeof record.stats.plays !== 'number') return 0;
+        else return record.stats.plays;
+    } catch (err) {
+        console.error('Failed to get play count:', err);
+        return 0;
+    }
 }
 
 // --- Utility: Initialize WaveSurfer instance for a given waveform ID and blob URL ---
@@ -1327,8 +1578,9 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
                             } else {
                                 wavesurfer.play();
                                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                                if (!hasCountedPlay) {
-                                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
+                                if (!hasCountedPlay && playBtn._soundskyPost && playBtn._soundskyLexiconRecord) {
+                                    incrementLexiconPlayCount({ uri: playBtn._soundskyPost.uri, value: playBtn._soundskyLexiconRecord });
+                                    hasCountedPlay = true;
                                 }
                             }
                         };
@@ -1366,7 +1618,7 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
                     });
             wavesurfer.on('ready', () => {
                 if (durationEl && wavesurfer.getDuration) durationEl.textContent = formatTime(wavesurfer.getDuration());
-            });
+                    });
                     wavesurfer.on('timeupdate', (currentTime) => {
                         if (timeEl) timeEl.textContent = formatTime(currentTime);
                     });
@@ -1403,6 +1655,7 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
     let wavesurfer = null;
     let audioLoaded = false;
     let loading = false;
+    let hasCountedPlay = false;
 
     // Fallback for huge files: show message before play, remove it and show <audio> on play
     if (blobSize && blobSize > 10 * 1024 * 1024) {
@@ -1482,7 +1735,10 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
             } else {
                 wavesurfer.play();
                 svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
+                if (!hasCountedPlay && playBtn._soundskyPost && playBtn._soundskyLexiconRecord) {
+                    incrementLexiconPlayCount({ uri: playBtn._soundskyPost.uri, value: playBtn._soundskyLexiconRecord });
+                    hasCountedPlay = true;
+                }
             }
             return;
         }
@@ -1524,7 +1780,10 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
                     });
                     wavesurfer.play();
                     svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                    incrementCount('soundskycloud', audioWaveformId.replace('waveform-','')).catch(() => {});
+                    if (!hasCountedPlay && playBtn._soundskyPost && playBtn._soundskyLexiconRecord) {
+                        incrementLexiconPlayCount({ uri: playBtn._soundskyPost.uri, value: playBtn._soundskyLexiconRecord });
+                        hasCountedPlay = true;
+                    }
                 }
             } catch (err) {
                 console.error('WaveSurfer init error', err);
@@ -1847,21 +2106,6 @@ feedContainer.addEventListener('click', async function(e) {
     }
 });
 
-// --- Play Counter Helpers ---
-/**
- * Get the current count from CounterAPI
- * @param {string} namespace - Your domain or logical grouping (in our case 'soundskycloud')
- * @param {string} key - Unique identifier for the play counter (e.g., did of the post)
- * @returns {Promise<number>} - Resolves to the current count
- */
-async function getCount(namespace, key) {
-    const url = `https://counterapi.com/api/${namespace}/play/${key}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch count');
-    const data = await response.json();
-    console.log('Count:', namespace, key, data);
-    return data.value;
-  }
   
 /**
  * Increment the counter by 1
@@ -1875,7 +2119,6 @@ async function incrementCount(namespace, key) {
     const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to increment count');
     const data = await response.json();
-    console.log('Increment:', namespace, key, data.value);
     return data.value;
 }
 
@@ -2039,6 +2282,7 @@ async function renderLikedPostsAlbumView() {
         let embed = post.record && post.record.embed;
         let tags = post.record && post.record.tags;
         let soundskyRkey = null;
+        let playCount = null;
         if (tags && Array.isArray(tags)) {
             for (const tag of tags) {
                 if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
@@ -2054,6 +2298,7 @@ async function renderLikedPostsAlbumView() {
                 const lexRes = await fetchSoundSkyRecord(agent, { did, rkey: soundskyRkey });
                 if (lexRes.success && lexRes.record) {
                     lexiconRecord = lexRes.record;
+                    playCount = await getLexiconPlayCount({ post });
                 }
             } catch (err) {
                 lexiconRecord = null;
@@ -2124,6 +2369,11 @@ async function renderLikedPostsAlbumView() {
                 playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy">` : `<div class="album-cover-placeholder"></div>`;
             }
         }
+        // --- Play Count (for lexicon posts) ---
+        let playCountHtml = '';
+        if (typeof playCount === 'number') {
+            playCountHtml = `<div class="album-playcount text-xs text-gray-400 mt-1">Plays: ${playCount}</div>`;
+        }
         return `<div class="album-tile">
             ${playBtnHtml}
             <div class="album-title-row">
@@ -2132,6 +2382,7 @@ async function renderLikedPostsAlbumView() {
             <div class="album-artist-row">
                 <a href="#" class="album-artist-link" data-did="${user.did}">${artist}</a>
             </div>
+            ${playCountHtml}
         </div>`;
     }));
     html += postCards.join('');
@@ -2385,4 +2636,18 @@ function setupNotificationNavRefresh() {
             setTimeout(fetchNotifications, 500);
         }
     });
+}
+
+// --- Helper: Fetch the latest lexicon record for a given did and rkey ---
+async function getLatestLexiconRecord(agent, did, rkey, fallbackRecord = null) {
+    try {
+        const res = await agent.api.com.atproto.repo.getRecord({
+            repo: did,
+            collection: 'cloud.soundsky.audio',
+            rkey
+        });
+        return res.data.value;
+    } catch (e) {
+        return fallbackRecord;
+    }
 }
