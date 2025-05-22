@@ -86,8 +86,8 @@ async function incrementLexiconPlayCountEmbed(did, rkey) {
 }
 
 // Patch renderMinimalPlayer to show lexicon play count if available
-function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconRecord = null, rkey = null, did = null } = {}) {
-  let artworkUrl = extractArtworkUrl(post);
+function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconRecord = null, rkey = null, did = null, artworkOverride = null } = {}) {
+  let artworkUrl = artworkOverride || extractArtworkUrl(post);
   let title = post.record?.text || '';
   const artist = post.author?.displayName || post.author?.handle || '';
   const facets = post.record && post.record.facets;
@@ -198,7 +198,12 @@ async function renderEmbedPlayer(uri) {
     let artist = '';
     if (lexiconRecord) {
       if (lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-        const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
+        let blobRef = lexiconRecord.artwork.ref;
+        if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
+          blobRef = blobRef.$link;
+        } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+          blobRef = blobRef.toString();
+        }
         artworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
       }
       if (lexiconRecord.audio && lexiconRecord.audio.ref) {
@@ -253,9 +258,14 @@ async function renderEmbedPlayer(uri) {
     }
     updateMetaTags({ record: { text: title }, author: { displayName: artist } }, audioBlobUrl, artworkUrl);
     // Render player UI (no lazy, no placeholder)
+    // Use oEmbed thumbnail_url as cover if available
+    let coverToShow = artworkUrl;
+    if (window.oembedResponse && window.oembedResponse.thumbnail_url) {
+      coverToShow = window.oembedResponse.thumbnail_url;
+    }
     container.innerHTML = renderMinimalPlayer(
       { record: { text: title }, author: { displayName: artist } },
-      { lazy: false, isLargeFile, lexiconRecord, rkey: soundskyRkey, did: userDid }
+      { lazy: false, isLargeFile, lexiconRecord, rkey: soundskyRkey, did: userDid, artworkOverride: coverToShow }
     );
     // Setup player immediately
     const playBtn = document.getElementById('embed-play-btn');
@@ -378,7 +388,12 @@ function extractArtworkUrl(post) {
     const img = images[0];
     let imgUrl = '';
     if (img.image && img.image.ref) {
-      const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+      let blobRef = img.image.ref;
+      if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
+        blobRef = blobRef.$link;
+      } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+        blobRef = blobRef.toString();
+      }
       const userDid = post.author.did;
       imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
     }
