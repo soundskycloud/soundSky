@@ -86,7 +86,7 @@ async function incrementLexiconPlayCountEmbed(did, rkey) {
 }
 
 // Patch renderMinimalPlayer to show lexicon play count if available
-function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconRecord = null, rkey = null, did = null, artworkOverride = null } = {}) {
+function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconRecord = null, rkey = null, did = null, artworkOverride = null, postUri = null } = {}) {
   let artworkUrl = artworkOverride || extractArtworkUrl(post);
   let title = post.record?.text || '';
   const artist = post.author?.displayName || post.author?.handle || '';
@@ -108,12 +108,12 @@ function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconR
   }
   // --- Play Counter UI ---
   let playCounterHtml = '';
-  if (lexiconRecord && rkey && did) {
-    const playCount = getLexiconPlayCount(lexiconRecord);
-    playCounterHtml = `<div class="embed-playcount flex items-center text-gray-700 mr-3"><i class="fa fa-play"></i><span class="ml-1">${playCount}</span> <span class="ml-1 text-xs text-gray-400">Plays</span></div>`;
-  } else {
+  // Only show play counter for legacy posts
+  if (!lexiconRecord) {
     playCounterHtml = `<img src="https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays&readOnly=false" class="mr-3">`;
   }
+  // --- Link to main SoundSky post ---
+  const postUrl = `/?post=${encodeURIComponent(postUri)}`;
   // No placeholder for embed
   const audioHtml = `
     <div class=\"embed-audio-row\">
@@ -129,8 +129,8 @@ function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconR
   `;
   return `
     <div class=\"embed-card\">
-      <div class=\"embed-artwork\">${artworkUrl ? `<img src=\"${artworkUrl}\" alt=\"Artwork\">` : ''}</div>
-      <div class=\"embed-title\">${title}</div>
+      <div class=\"embed-artwork\">${artworkUrl ? `<a href="${postUrl}" target="_blank"><img src="${artworkUrl}" alt="Artwork"></a>` : ''}</div>
+      <div class=\"embed-title\"><a href="${postUrl}" target="_blank">${title}</a></div>
       <div class=\"embed-artist\">${artist}</div>
       <div class=\"flex items-center mt-2\">${playCounterHtml}</div>
       ${audioHtml}
@@ -265,7 +265,7 @@ async function renderEmbedPlayer(uri) {
     }
     container.innerHTML = renderMinimalPlayer(
       { record: { text: title }, author: { displayName: artist } },
-      { lazy: false, isLargeFile, lexiconRecord, rkey: soundskyRkey, did: userDid, artworkOverride: coverToShow }
+      { lazy: false, isLargeFile, lexiconRecord, rkey: soundskyRkey, did: userDid, artworkOverride: coverToShow, postUri: post.uri }
     );
     // Setup player immediately
     const playBtn = document.getElementById('embed-play-btn');
