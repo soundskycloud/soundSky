@@ -1390,7 +1390,32 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     const likeBtnHtml = `<button class=\"like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
     const repostBtnHtml = `<button class=\"repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-reposted=\"${!!reposted}\" data-reposturi=\"${reposted ? reposted : ''}\"><i class=\"fa fa-retweet\"></i><span>${repostCount}</span></button>`;
     const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\"><i class=\"fa fa-comment\"></i><span>${commentCount}</span></button>`;
-    const debugBtnHtml = `<a href=\"https://atproto-browser.dev/?path=${encodeURIComponent(post.uri)}\" target=\"_blank\" class=\"ml-2 text-gray-400 hover:text-red-500\" title=\"Debug in atproto-browser\"><i class=\"fa fa-bug\"></i></a>`;
+    // --- FIX: Correct debug button URL for atproto-browser ---
+    let debugUrl = '';
+    // Prefer lexicon record if available
+    let soundskyRkeyFinal = null;
+    const tags = post.record && post.record.tags;
+    if (tags && Array.isArray(tags)) {
+        for (const tag of tags) {
+            if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+                soundskyRkeyFinal = tag.split('=')[1];
+                break;
+            }
+        }
+    }
+    if (soundskyRkeyFinal) {
+        debugUrl = `https://www.atproto-browser.dev/at/${user.did}/cloud.soundsky.audio/${soundskyRkeyFinal}`;
+    } else {
+        // Fallback: link to the Bluesky post
+        const uriParts = String(post.uri).replace('at://', '').split('/');
+        if (uriParts.length === 3) {
+            const did = uriParts[0];
+            const collection = uriParts[1];
+            const rkey = uriParts[2];
+            debugUrl = `https://www.atproto-browser.dev/at/${did}/${collection}/${rkey}`;
+        }
+    }
+    const debugBtnHtml = `<a href="${debugUrl}" target="_blank" class="ml-2 text-gray-400 hover:text-red-500" title="Debug in atproto-browser"><i class="fa fa-bug"></i></a>`;
     const reportBtnHtml = `<button class=\"report-post-btn flex items-center space-x-1 text-sm text-gray-400 hover:text-red-500\" data-uri=\"${post.uri}\"><i class=\"fa fa-flag\"></i></button>`;
     let deleteBtnHtml = '';
     if (agent && agent.session && agent.session.did && user.did === agent.session.did) {
