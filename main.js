@@ -1389,7 +1389,7 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     const commentCount = post.replyCount || 0;
     const likeBtnHtml = `<button class=\"like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
     const repostBtnHtml = `<button class=\"repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-reposted=\"${!!reposted}\" data-reposturi=\"${reposted ? reposted : ''}\"><i class=\"fa fa-retweet\"></i><span>${repostCount}</span></button>`;
-    const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\"><i class=\"fa fa-comment\" data-post-uri=\"${post.uri}\"></i><span>${commentCount}</span></button>`;
+    const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\" data-post-uri=\"${post.uri}\"><i class=\"fa fa-comment\" data-post-uri=\"${post.uri}\"></i><span>${commentCount}</span></button>`;
     // --- Share button for embed link ---
     // Always use the Bluesky post URI for the embed link, even for lexicon posts
     const embedUrl = `/embed/?url=${encodeURIComponent(post.uri)}`;
