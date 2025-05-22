@@ -100,12 +100,15 @@ window.addEventListener('DOMContentLoaded', async () => {
             const postParam = getPostParamFromUrl();
             const artistParam = getArtistParamFromUrl();
             const searchParam = getSearchParamFromUrl();
+            const linkParam = getLinkParamFromUrl();
             if (postParam) {
                 renderSinglePostView(postParam);
             } else if (artistParam) {
                 renderArtistPage(artistParam);
             } else if (searchParam) {
                 fetchSoundskyFeed({ mode: 'search', q: searchParam });
+            } else if (linkParam) {
+                fetchSoundskyFeed({ mode: 'link', q: linkParam });
             } else {
                 setActiveNav('nav-discover');
                 fetchSoundskyFeed({ mode: 'discover' });
@@ -418,6 +421,11 @@ async function fetchSoundskyFeed({ append = false, mode = 'home', q = false } = 
                 const params = { q: '#soundskyimg='+q, limit: 50 };
                 if (localCursor) params.cursor = localCursor;
                 feed = await agent.api.app.bsky.feed.searchPosts(params);
+            } else if (mode == 'link' && q != false) {
+                // alias search on image id
+                const params = { q: '#soundskyid='+q, limit: 50 };
+                if (localCursor) params.cursor = localCursor;
+                feed = await agent.api.app.bsky.feed.searchPosts(params);
             } else {
                 const params = { limit: 50 };
                 if (localCursor) params.cursor = localCursor;
@@ -699,8 +707,8 @@ if (audioPostForm) {
             const metaBpm = document.getElementById('meta-bpm')?.value.trim();
             const metaKey = document.getElementById('meta-key')?.value.trim();
             const metaIsrc = document.getElementById('meta-isrc')?.value.trim();
-            const metaLicense = document.getElementById('meta-license').value.trim();
-            const metaTags = document.getElementById('meta-tags').value.trim();
+            const metaLicense = document.getElementById('meta-license')?.value.trim();
+            const metaTags = document.getElementById('meta-tags')?.value.trim();
             const caption = audioCaptionInput.value || '';
             // Build metadata object
             const metadata = {
@@ -732,15 +740,9 @@ if (audioPostForm) {
             if (metadata.genre) tags.push(metadata.genre);
             if (metadata.album) tags.push(metadata.album);
             if (metadata.tags && Array.isArray(metadata.tags)) tags.push(...metadata.tags);
-            // Add Play on SoundSky link as a facet
+            // Add Play on SoundSky link as a facet using /?link=<rkey>
             let postText = caption || '';
-            // After posting, search for the post with the soundskyid tag and use its URI for sharing/embed links
-            let bskyPostUri = '';
-            try {
-                const searchRes = await agent.api.app.bsky.feed.searchPosts({ q: `soundskyid=${rkey}`, limit: 1 });
-                bskyPostUri = searchRes.data?.feed?.[0]?.post?.uri || '';
-            } catch (e) { bskyPostUri = ''; }
-            const playerUrl = bskyPostUri ? `https://soundsky.cloud/?post=${encodeURIComponent(bskyPostUri)}` : '';
+            const playerUrl = `https://soundsky.cloud/?link=${encodeURIComponent(rkey)}`;
             const linkText = '\n\nPlay on SoundSky';
             if (!postText.endsWith(linkText)) postText += linkText;
             // Find byteStart/byteEnd for 'Play on SoundSky' (last occurrence)
@@ -748,16 +750,43 @@ if (audioPostForm) {
             const soundSkyIdx = postText.lastIndexOf('Play on SoundSky');
             const byteStart = encoder.encode(postText.slice(0, soundSkyIdx)).length;
             const byteEnd = byteStart + encoder.encode('Play on SoundSky').length;
-            const facets = [{
-                index: { byteStart, byteEnd },
+            // Only add the facet if playerUrl is a valid https:// URL
+            let facets = [];
+            console.log('[SoundSky] playerUrl:', playerUrl);
+            console.log('[SoundSky] byteStart:', byteStart, 'byteEnd:', byteEnd);
+            if (playerUrl && playerUrl.startsWith('https://')) {
+                facets = [{
+                    index: { byteStart, byteEnd },
                     features: [
                         {
                             $type: 'app.bsky.richtext.facet#link',
-                        uri: playerUrl
+                            uri: playerUrl
+                        }
+                    ]
+                }];
+            }
+            console.log('[SoundSky] facets:', facets);
+            // --- Try to post to Bluesky, cleanup lexicon record on failure ---
+            let postRes;
+            try {
+                postRes = await agent.post({ text: postText, tags, facets });
+            } catch (err) {
+                // Delete the lexicon record to avoid orphaned entry
+                try {
+                    const did = agent.session?.did;
+                    if (did && rkey) {
+                        await agent.api.com.atproto.repo.deleteRecord({
+                            repo: did,
+                            collection: 'cloud.soundsky.audio',
+                            rkey: rkey,
+                        });
+                        console.error('Bluesky post failed, lexicon record deleted to avoid orphaned entry.');
                     }
-                ]
-            }];
-            const postRes = await agent.post({ text: postText, tags, facets });
+                } catch (cleanupErr) {
+                    console.error('Failed to delete orphaned lexicon record:', cleanupErr);
+                }
+                throw err;
+            }
             audioPostStatus.textContent = 'Posted!';
             audioPostForm.reset();
             const uploadForm = document.getElementById('create-audio-post');
@@ -1216,6 +1245,11 @@ function getArtistParamFromUrl() {
 function getSearchParamFromUrl() {
     const url = new URL(window.location.href);
     return url.searchParams.get('q') || url.searchParams.get('search');
+}
+
+function getLinkParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('l') || url.searchParams.get('link');
 }
 
 // Helper: format relative time
