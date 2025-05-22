@@ -17,7 +17,7 @@
 - Infraless: exists on top of [bsky.social](https://bsky.social) auth & blob storage
 - Supports Upload, Post & Playback of _(legal)_ MP3 files 
 - Discovers Audio content using special _(hidden)_ tags
-- URL parameters for linking to `artist` and `post`
+- URL parameters for linking to `artists` and `posts`
 
 ##### Limitations
 - Account
@@ -30,9 +30,11 @@
   - lazy loading of audio blobs on playback
   - wavesurfer w/ waveform display & navigation
   - fallback to `<audio>` for large files
-- Images
-  - Images stored on imgur are linked in kv tags
-  - Image IDs are used to locate posts from covers
+- SoundSky Lexicon
+  - Audio Blob
+  - Image Blob
+  - Play Count
+  - Metadata
 
 
 ## Live Beta
