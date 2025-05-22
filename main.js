@@ -909,7 +909,7 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord && lexiconRecord.metadata) {
         displayTitle = lexiconRecord.metadata.title || '';
         displayArtist = lexiconRecord.metadata.artist || '';
-    } else {
+        } else {
         displayTitle = (post.record?.text || '').split('\n')[0].slice(0, 100);
         displayArtist = user.displayName || user.handle || '';
     }
@@ -938,7 +938,7 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
         const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
         setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0);
-    } else {
+                } else {
         // Legacy embed logic
         let fileEmbed = null;
         const embed = post.record && post.record.embed;
@@ -953,7 +953,7 @@ async function renderSinglePostView(postUri) {
     // Fetch the thread for comments (if not already available)
     try {
         await renderSinglePostComments(post);
-    } catch (err) {
+                    } catch (err) {
         const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
         if (postCardContent) {
             postCardContent.insertAdjacentHTML('beforeend', '<div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4"><div class="text-red-400 text-xs">Failed to load comments.</div></div>');
@@ -1048,7 +1048,7 @@ async function renderSinglePostComments(post) {
                     commentForm.querySelector('button[type="submit"]').disabled = false;
                 }
             });
-        } else {
+    } else {
             console.debug('[SinglePost] Comment form not found for direct handler');
         }
     }, 0);
@@ -1389,7 +1389,11 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     const commentCount = post.replyCount || 0;
     const likeBtnHtml = `<button class=\"like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
     const repostBtnHtml = `<button class=\"repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-reposted=\"${!!reposted}\" data-reposturi=\"${reposted ? reposted : ''}\"><i class=\"fa fa-retweet\"></i><span>${repostCount}</span></button>`;
-    const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\"><i class=\"fa fa-comment\"></i><span>${commentCount}</span></button>`;
+    const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\"><i class=\"fa fa-comment\" data-post-uri=\"${post.uri}\"></i><span>${commentCount}</span></button>`;
+    // --- Share button for embed link ---
+    // Always use the Bluesky post URI for the embed link, even for lexicon posts
+    const embedUrl = `/embed/?url=${encodeURIComponent(post.uri)}`;
+    const shareBtnHtml = `<button class=\"share-post-btn flex items-center space-x-1 text-sm text-gray-400 hover:text-blue-500\" data-shareurl=\"${embedUrl}\" title=\"Copy embed link\"><i class=\"fa fa-share-nodes\"></i></button>`;
     // --- FIX: Correct debug button URL for atproto-browser ---
     let debugUrl = '';
     // Prefer lexicon record if available
@@ -1416,7 +1420,6 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
         }
     }
     const debugBtnHtml = `<a href="${debugUrl}" target="_blank" class="ml-2 text-gray-400 hover:text-red-500" title="Debug in atproto-browser"><i class="fa fa-bug"></i></a>`;
-    const reportBtnHtml = `<button class=\"report-post-btn flex items-center space-x-1 text-sm text-gray-400 hover:text-red-500\" data-uri=\"${post.uri}\"><i class=\"fa fa-flag\"></i></button>`;
     let deleteBtnHtml = '';
     if (agent && agent.session && agent.session.did && user.did === agent.session.did) {
         deleteBtnHtml = `<button class=\"delete-post-btn flex items-center space-x-1 text-sm text-red-500 hover:text-red-700\" data-uri=\"${post.uri}\" title=\"Delete post\"><i class=\"fa fa-trash\"></i></button>`;
@@ -1431,7 +1434,7 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     // --- Render ---
     return `
         <div class=\"bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out\" data-post-uri=\"${String(post.uri)}\">\n            <div class=\"p-4\">\n                <div class=\"flex items-start\">\n                    <img class=\"h-10 w-10 rounded-full\" src=\"${avatar}\" alt=\"${user.handle}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\">\n                    <div class=\"ml-3 flex-1\">
-                        <div class=\"flex items-center\">\n                            <button class=\"artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline\" data-did=\"${did}\">${user.displayName || user.handle || 'Unknown'}</button>\n                            <span class=\"mx-1 text-gray-500 dark:text-gray-400\">·</span>\n                            <span class=\"text-sm text-gray-500 dark:text-gray-400\">${formatRelativeTime(post.indexedAt)}</span>\n                        </div>\n                        ${titleRowHtml}\n                        ${audioPlayerHtml}\n                        <div class=\"mt-3 flex items-center space-x-3\">\n                            ${playCounterHtml}\n                            ${likeBtnHtml}\n                            ${repostBtnHtml}\n                            ${commentBtnHtml}\n                            ${debugBtnHtml}\n                            ${reportBtnHtml}\n                            ${deleteBtnHtml}\n                        </div>\n                    </div>\n                </div>\n            </div>\n        </div>\n    `;
+                        <div class=\"flex items-center\">\n                            <button class=\"artist-link font-medium text-gray-900 dark:text-gray-100 hover:underline\" data-did=\"${did}\">${user.displayName || user.handle || 'Unknown'}</button>\n                            <span class=\"mx-1 text-gray-500 dark:text-gray-400\">·</span>\n                            <span class=\"text-sm text-gray-500 dark:text-gray-400\">${formatRelativeTime(post.indexedAt)}</span>\n                        </div>\n                        ${titleRowHtml}\n                        ${audioPlayerHtml}\n                        <div class=\"mt-3 flex items-center space-x-3\">\n                            ${playCounterHtml}\n                            ${likeBtnHtml}\n                            ${repostBtnHtml}\n                            ${commentBtnHtml}\n                            ${shareBtnHtml}\n                            ${debugBtnHtml}\n                            ${deleteBtnHtml}\n                        </div>\n                    </div>\n                </div>\n            </div>\n        </div>\n    `;
 }
 
 // --- New: Increment play count for custom lexicon posts ---
