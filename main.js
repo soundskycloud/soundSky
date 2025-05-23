@@ -346,7 +346,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
         const embed = post.record && post.record.embed;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             audioHtml = '';
         } else {
             // No valid audio, skip this post
@@ -1030,32 +1030,21 @@ async function renderSinglePostComments(post) {
     // Render the comment section using the correct markup and classes
     const currentUserAvatar = agent.session?.did ? (document.getElementById('current-user-avatar')?.src || defaultAvatar) : defaultAvatar;
     const commentBlockHtml = `
-      <div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-        <div class="flex items-center gap-2 mb-2">
-          <img src="${currentUserAvatar}" class="h-8 w-8 rounded-full" alt="Me" onerror="this.onerror=null;this.src='/favicon.ico';">
-          <form id="comment-form-${post.cid}" class="flex-1 flex items-center gap-2">
-            <input id="comment-input-${post.cid}" type="text" placeholder="Write a comment" class="flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none" maxlength="280" autocomplete="off">
-            <button id="comment-send-${post.cid}" type="submit" class="p-2 text-blue-500 hover:text-blue-600" title="Send">
-              <svg width="20" height="20" fill="none" viewBox="0 0 20 20"><path d="M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z" fill="currentColor"></path></svg>
+      <div class=\"mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4\">
+        <div class=\"flex items-center gap-2 mb-2\">
+          <img src=\"${currentUserAvatar}\" class=\"h-8 w-8 rounded-full\" alt=\"Me\" onerror=\"this.onerror=null;this.src='/favicon.ico';\">
+          <form id=\"comment-form-${post.cid}\" class=\"flex-1 flex items-center gap-2\">
+            <input id=\"comment-input-${post.cid}\" type=\"text\" placeholder=\"Write a comment\" class=\"flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none\" maxlength=\"280\" autocomplete=\"off\">
+            <button id=\"comment-send-${post.cid}\" type=\"submit\" class=\"p-2 text-blue-500 hover:text-blue-600\" title=\"Send\">
+              <svg width=\"20\" height=\"20\" fill=\"none\" viewBox=\"0 0 20 20\"><path d=\"M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z\" fill=\"currentColor\"></path></svg>
             </button>
           </form>
         </div>
-        <div id="comments-${post.cid}" class="space-y-2">
+        <div id=\"comments-${post.cid}\" class=\"space-y-2\">
           ${
             replies.length === 0
-              ? '<div class=\"text-gray-400 text-xs\">No comments yet.</div>'
-              : replies.map(reply => {
-                  const author = reply.post.author;
-                  const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did || ''}/@jpeg`;
-                  const name = author.displayName || author.handle || 'Unknown';
-                  const commentText = reply.post.record.text || '';
-                  const isOwnComment = agent.session && agent.session.did === author.did;
-                  const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
-                  const liked = reply.post.viewer && reply.post.viewer.like;
-                  const likeCount = reply.post.likeCount || 0;
-                  const likeBtnHtml = `<button class=\"like-comment-btn flex items-center space-x-1 text-xs ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${reply.post.uri}\" data-cid=\"${reply.post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
-                  return `<div class=\"flex items-start gap-2\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2\">${likeBtnHtml}${deleteBtn}</div></div>`;
-                }).join('')
+              ? '<div class=\\"text-gray-400 text-xs\\">No comments yet.</div>'
+              : renderThreadedComments(replies)
           }
         </div>
       </div>
@@ -1099,6 +1088,29 @@ async function renderSinglePostComments(post) {
             console.debug('[SinglePost] Comment form not found for direct handler');
         }
     }, 0);
+}
+
+// --- Helper: Recursively render threaded comments (minimal indentation, full-width rows) ---
+function renderThreadedComments(replies, level = 0) {
+    if (!replies || !Array.isArray(replies) || replies.length === 0) return '';
+    // Minimal indentation: 1vw per level, capped at 8px
+    const indent = `calc(min(1vw, 8px) * ${level})`;
+    // Alternate background shade for nesting
+    const bgShade = level % 2 === 0 ? 'rgba(36,40,48,0.10)' : 'rgba(36,40,48,0.16)';
+    return replies.map(reply => {
+        const author = reply.post.author;
+        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did || ''}/@jpeg`;
+        const name = author.displayName || author.handle || 'Unknown';
+        const commentText = reply.post.record.text || '';
+        const isOwnComment = agent.session && agent.session.did === author.did;
+        const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
+        const liked = reply.post.viewer && reply.post.viewer.like;
+        const likeCount = reply.post.likeCount || 0;
+        const likeBtnHtml = `<button class=\"like-comment-btn flex items-center space-x-1 text-xs ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${reply.post.uri}\" data-cid=\"${reply.post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
+        // Recursively render child replies
+        const childReplies = renderThreadedComments(reply.replies, level + 1);
+        return `<div class=\"soundsky-comment-bubble\" style=\"margin-left:${indent};background:${bgShade};\"><div class=\"flex items-start w-full\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full mr-2\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1 min-w-0\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200 break-words\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2 self-start\" style=\"margin-left:auto;\">${likeBtnHtml}${deleteBtn}</div></div>${childReplies}</div>`;
+    }).join('');
 }
 
 // --- 3. Add renderArtistPage(did) ---
@@ -2649,11 +2661,24 @@ function renderNotificationDropdown(errorMsg) {
     // Attach click handler robustly
     setTimeout(() => {
         document.querySelectorAll('.notification-row').forEach(row => {
-            row.onclick = function(e) {
+            row.onclick = async function(e) {
                 const postUri = row.getAttribute('data-post-uri');
                 if (postUri) {
-                    setPostParamInUrl(postUri);
-                    renderSinglePostView(postUri);
+                    // Always resolve to root/top post
+                    try {
+                        const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
+                        const rootUri = getRootPostUriFromThread(threadRes.data.thread);
+                        if (rootUri) {
+                            setPostParamInUrl(rootUri);
+                            renderSinglePostView(rootUri);
+                        } else {
+                            setPostParamInUrl(postUri);
+                            renderSinglePostView(postUri);
+                        }
+                    } catch (err) {
+                        setPostParamInUrl(postUri);
+                        renderSinglePostView(postUri);
+                    }
                     dropdown.classList.add('hidden');
                 }
             };
@@ -2730,4 +2755,54 @@ async function getLatestLexiconRecord(agent, did, rkey, fallbackRecord = null) {
     } catch (e) {
         return fallbackRecord;
     }
+}
+
+// --- Patch notification click handler to always load root/top post ---
+function getRootPostUriFromThread(thread) {
+    // Recursively walk up to the root
+    let node = thread;
+    while (node && node.parent) {
+        node = node.parent;
+    }
+    return node && node.post ? node.post.uri : (node && node.uri ? node.uri : null);
+}
+
+// --- Add/Update CSS for responsive comments ---
+if (!document.getElementById('soundsky-comment-bubble-style')) {
+    const style = document.createElement('style');
+    style.id = 'soundsky-comment-bubble-style';
+    style.textContent = `
+    #feed [id^='comments-'], #single-post-content [id^='comments-'] {
+      overflow-x: auto;
+      position: relative;
+      max-width: 100%;
+      word-break: break-word;
+    }
+    .soundsky-comment-bubble {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      border-left: 2.5px solid #3b82f6;
+      border-radius: 8px;
+      margin-bottom: 0.2rem;
+      padding: 0.5rem 0.7rem 0.5rem 0.7rem;
+      display: block;
+      background: inherit;
+    }
+    .soundsky-comment-bubble .flex-1 {
+      min-width: 0;
+      word-break: break-word;
+    }
+    .soundsky-comment-bubble p {
+      margin: 0.1rem 0 0 0;
+      word-break: break-word;
+    }
+    @media (max-width: 600px) {
+      .soundsky-comment-bubble {
+        padding: 0.4rem 0.3rem 0.4rem 0.5rem;
+        border-radius: 6px;
+      }
+    }
+    `;
+    document.head.appendChild(style);
 }
