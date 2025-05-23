@@ -69,7 +69,7 @@ function renderSidebarLikedSongs(likedAudioPosts) {
 async function fetchAndRenderSidebarLikedSongs() {
     if (!agent || !agent.session || !agent.session.did) return;
     try {
-        const res = await agent.api.app.bsky.feed.getActorLikes({ actor: agent.session.did, limit: 8 });
+        const res = await agent.api.app.bsky.feed.getActorLikes({ actor: agent.session.did, limit: 6 });
         let likedPosts = res.data?.feed || [];
         // Filter for audio posts
         likedPosts = filterAudioPosts(likedPosts);
@@ -330,10 +330,13 @@ async function appendAudioPostCard(audioPost, feedGen) {
                 playCount = await getLexiconPlayCount({ post });
             } else {
                 useLexicon = false;
+                console.warn('[appendAudioPostCard] Skipping post: missing lexicon record', post.uri);
+                return; // Skip this post
             }
         } catch (err) {
             useLexicon = false;
-            console.error('[appendAudioPostCard] Error fetching lexicon record for', post.uri, err);
+            console.warn('[appendAudioPostCard] Skipping post: error fetching lexicon record', post.uri, err);
+            return; // Skip this post
         }
     }
     // For lexicon posts, set up the player to use the lexicon audio blob
@@ -343,8 +346,18 @@ async function appendAudioPostCard(audioPost, feedGen) {
         const embed = post.record && post.record.embed;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             audioHtml = '';
+        } else {
+            // No valid audio, skip this post
+            console.warn('[appendAudioPostCard] Skipping post: missing audio', post.uri);
+            return;
+        }
+    } else {
+        // For lexicon posts, ensure audio is present
+        if (!lexiconRecord || !lexiconRecord.audio || !lexiconRecord.audio.ref) {
+            console.warn('[appendAudioPostCard] Skipping post: lexicon record missing audio', post.uri);
+            return;
         }
     }
     if (feedGen !== _soundskyFeedGeneration) return;
@@ -363,7 +376,6 @@ async function appendAudioPostCard(audioPost, feedGen) {
         const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
         if (playCountEl) {
             playCountEl.textContent = playCount;
-            // playCountEl.textContent = typeof playCount === 'number' ? playCount : (typeof lexiconRecord.stats?.plays === 'number' ? lexiconRecord.stats.plays : 0);
         }
     }
     if (!_soundskyFirstCardAppended) {
@@ -963,7 +975,7 @@ async function renderSinglePostView(postUri) {
             <div class="p-4">
                 ${titleRowHtml}
                 ${largeArtworkHtml}
-                ${await renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId, hideArtwork: true }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount })}
+                ${await renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount })}
             </div>
         </div>
         <div id="comments-${post.cid}"></div>
@@ -1387,10 +1399,10 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     // Constrain cover size for all posts
     let artworkHtml = '';
     if (displayArtworkUrl) {
-        artworkHtml = `<div class=\"mb-2\"><img src=\"${displayArtworkUrl}\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+        artworkHtml = `<div class=\"mb-2\"><img src=\"${displayArtworkUrl}\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\" onerror=\"this.onerror=null;this.src='/favicon.ico';\"></div>`;
     } else {
         // Placeholder for missing cover
-        artworkHtml = `<div class=\"mb-2\"><div class=\"soundsky-cover-placeholder\" style=\"width:96px;height:96px;background:#e5e7eb;border-radius:12px;display:flex;align-items:center;justify-content:center;\"><i class=\"fa fa-image text-gray-300\" style=\"font-size:2rem;\"></i></div></div>`;
+        artworkHtml = `<div class=\"mb-2\"><img src=\"/favicon.ico\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\"></div>`;
     }
     // --- Player HTML ---
     let audioPlayerHtml = '';
@@ -2421,7 +2433,7 @@ async function renderLikedPostsAlbumView() {
         if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
             const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
             playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
-                ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy">` : `<div class="album-cover-placeholder"></div>`}
+                ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`}
                 <div class="album-cover-overlay"><i class="fas fa-play album-play-icon"></i></div>
             </button>`;
         } else {
@@ -2430,11 +2442,11 @@ async function renderLikedPostsAlbumView() {
             if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
                 const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
                 playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
-                    ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy">` : `<div class="album-cover-placeholder"></div>`}
+                    ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`}
                     <div class="album-cover-overlay"><i class="fas fa-play album-play-icon"></i></div>
                 </button>`;
             } else {
-                playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy">` : `<div class="album-cover-placeholder"></div>`;
+                playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`;
             }
         }
         // --- Play Count (for lexicon posts) ---
