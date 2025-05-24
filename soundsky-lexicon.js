@@ -98,7 +98,7 @@ export async function fetchSoundSkyRecord(agent, { uri, did, rkey }) {
       return { success: true, record: undefined };
     }
   } catch (err) {
-    console.error('[SoundSky] fetchSoundSkyRecord error:', err);
+    // console.error('[SoundSky] fetchSoundSkyRecord error:', err);
     return { success: false, error: err.message || String(err) };
   }
 } 
