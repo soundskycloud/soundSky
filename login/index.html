@@ -159,6 +159,17 @@
     const loginForm = document.getElementById('login-form');
     const loginBtn = document.getElementById('login-btn');
     const loginError = document.getElementById('login-error');
+
+    // Helper to hash a string to SHA-256 hex
+    async function sha256Hex(str) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       loginError.style.display = 'none';
@@ -169,13 +180,14 @@
       const pdsInput = document.getElementById('pds-server');
       const pds = pdsInput && pdsInput.value.trim() ? pdsInput.value.trim() : 'https://bsky.social';
 
-      // Banlist check
+      // Banlist check (SHA-256 hash)
       try {
         const resp = await fetch('/login/banlist.txt');
         if (resp.ok) {
           const banlistText = await resp.text();
           const banlist = banlistText.split(/\r?\n/).map(u => u.trim().toLowerCase()).filter(Boolean);
-          if (banlist.includes(username.toLowerCase())) {
+          const usernameHash = await sha256Hex(username.toLowerCase());
+          if (banlist.includes(usernameHash)) {
             loginError.textContent = 'This account is banned.';
             loginError.style.display = 'block';
             loginBtn.disabled = false;
@@ -183,7 +195,8 @@
             return;
           }
         } else {
-          // If banlist can't be found, allow any login
+          // If banlist can't be loaded, allow login (or you can block if you prefer)
+          console.warn('Could not load banlist.txt');
         }
       } catch (err) {
         console.error('Error checking banlist:', err);
