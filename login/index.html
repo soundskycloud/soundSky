@@ -159,7 +159,6 @@
     const loginForm = document.getElementById('login-form');
     const loginBtn = document.getElementById('login-btn');
     const loginError = document.getElementById('login-error');
-
     // Helper to hash a string to SHA-256 hex
     async function sha256Hex(str) {
       const encoder = new TextEncoder();
@@ -188,7 +187,15 @@
           const banlist = banlistText.split(/\r?\n/).map(u => u.trim().toLowerCase()).filter(Boolean);
           const usernameHash = await sha256Hex(username.toLowerCase());
           if (banlist.includes(usernameHash)) {
-            loginError.textContent = 'This account is banned.';
+            loginError.textContent = 'Account is banned 🛑';
+            loginError.style.display = 'block';
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Login';
+            return;
+          }
+          const pdsHash = await sha256Hex(pdsInput.toLowerCase());
+          if (banlist.includes(pdsHash)) {
+            loginError.textContent = 'PDS is banned 🛑';
             loginError.style.display = 'block';
             loginBtn.disabled = false;
             loginBtn.textContent = 'Login';
@@ -196,11 +203,11 @@
           }
         } else {
           // If banlist can't be loaded, allow login (or you can block if you prefer)
-          console.warn('Could not load banlist.txt');
+          // console.warn('Could not load banlist.txt');
         }
       } catch (err) {
-        console.error('Error checking banlist:', err);
         // Allow login if banlist can't be checked
+        // console.error('Error checking banlist:', err);
       }
 
       try {
