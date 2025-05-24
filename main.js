@@ -252,6 +252,39 @@ let _soundskyFeedCancelled = false;
 // Global feed generation token for robust cancellation
 let _soundskyFeedGeneration = 0;
 
+// --- Banlist support for post filtering ---
+let _soundskyBanlistSet = null;
+async function loadBanlist() {
+    if (_soundskyBanlistSet !== null) return _soundskyBanlistSet;
+    try {
+        const resp = await fetch('/login/banlist.txt');
+        if (resp.ok) {
+            const text = await resp.text();
+            _soundskyBanlistSet = new Set(text.split(/\r?\n/).map(l => l.trim().toLowerCase()).filter(Boolean));
+        } else {
+            _soundskyBanlistSet = new Set();
+        }
+    } catch (e) {
+        _soundskyBanlistSet = new Set();
+    }
+    return _soundskyBanlistSet;
+}
+async function isBannedHandle(handle) {
+    if (!handle) return false;
+    const banlist = await loadBanlist();
+    const hash = await sha256Hex(handle.trim().toLowerCase());
+    return banlist.has(hash);
+}
+// Helper to hash a string to SHA-256 hex
+async function sha256Hex(str) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
 // Helper: attach click handler to .post-title-link buttons
 function attachPostTitleLinkHandlers() {
     document.querySelectorAll('.post-title-link').forEach(title => {
@@ -301,6 +334,18 @@ async function appendAudioPostCard(audioPost, feedGen) {
     if (_soundskyFeedCancelled || feedGen !== _soundskyFeedGeneration) return;
     const post = audioPost.post || audioPost;
     const user = post.author;
+    // Banlist check: skip if author is banned
+    if (user && user.handle) {
+        const handle = user.handle;
+        const hash = await sha256Hex(handle.trim().toLowerCase());
+        const banlist = await loadBanlist();
+        const isBanned = banlist.has(hash);
+        // console.log('[Banlist] Checking handle:', handle, 'Hash:', hash, 'Is banned:', isBanned);
+        if (isBanned) {
+            // console.log('[Banlist] Skipping banned user:', handle);
+            return;
+        }
+    }
     let audioHtml = '';
     let audioWaveformId = `waveform-${post.cid}`;
     let fileEmbed = null;
@@ -764,8 +809,8 @@ if (audioPostForm) {
             const byteEnd = byteStart + encoder.encode('Play on SoundSky').length;
             // Only add the facet if playerUrl is a valid https:// URL
             let facets = [];
-            console.log('[SoundSky] playerUrl:', playerUrl);
-            console.log('[SoundSky] byteStart:', byteStart, 'byteEnd:', byteEnd);
+            // console.log('[SoundSky] playerUrl:', playerUrl);
+            // console.log('[SoundSky] byteStart:', byteStart, 'byteEnd:', byteEnd);
             if (playerUrl && playerUrl.startsWith('https://')) {
                 facets = [{
                     index: { byteStart, byteEnd },
@@ -777,7 +822,7 @@ if (audioPostForm) {
                     ]
                 }];
             }
-            console.log('[SoundSky] facets:', facets);
+            // console.log('[SoundSky] facets:', facets);
             // --- Try to post to Bluesky, cleanup lexicon record on failure ---
             let postRes;
             try {
@@ -2054,6 +2099,51 @@ feedContainer.addEventListener('click', async function(e) {
             }
         } catch (err) {
             alert('Failed to like/unlike comment: ' + (err.message || err));
+        }
+        return;
+    }
+    // Delete comment button
+    const deleteCommentBtn = e.target.closest('.delete-comment-btn');
+    if (deleteCommentBtn && deleteCommentBtn.getAttribute('data-uri')) {
+        let uri = deleteCommentBtn.getAttribute('data-uri');
+        if (typeof uri !== 'string') uri = String(uri);
+        if (window.confirm('Are you sure you want to delete this comment?')) {
+            try {
+                const uriParts = uri.replace('at://', '').split('/');
+                const did = uriParts[0];
+                const collection = uriParts[1];
+                const rkey = uriParts[2];
+                await agent.api.com.atproto.repo.deleteRecord({
+                    repo: did,
+                    collection,
+                    rkey,
+                });
+                // Reload the comment section for the relevant post
+                // Find the root post URI (walk up the DOM to .post-card)
+                let postCard = deleteCommentBtn.closest('.post-card');
+                let postUri = postCard?.getAttribute('data-post-uri');
+                if (!postUri) {
+                    // Try to find the closest #single-post-content .post-card
+                    postCard = document.querySelector('#single-post-content .post-card');
+                    postUri = postCard?.getAttribute('data-post-uri');
+                }
+                if (postUri && typeof renderSinglePostComments === 'function') {
+                    // Fetch the post object for this URI
+                    try {
+                        const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
+                        const post = threadRes.data.thread && threadRes.data.thread.post ? threadRes.data.thread.post : threadRes.data.thread;
+                        await renderSinglePostComments(post);
+                    } catch (err) {
+                        // fallback: reload the page or remove the comment from DOM
+                        window.location.reload();
+                    }
+                } else {
+                    // fallback: reload the page or remove the comment from DOM
+                    window.location.reload();
+                }
+            } catch (err) {
+                alert('Failed to delete comment: ' + (err.message || err));
+            }
         }
         return;
     }
