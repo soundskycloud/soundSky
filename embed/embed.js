@@ -48,7 +48,7 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
     // fallback to CORS proxy
     const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
     try {
-      resp = await fetch(corsProxyUrl);
+    resp = await fetch(corsProxyUrl);
     } catch (e) {
       resp = { ok: false };
     }
@@ -58,6 +58,87 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
   return URL.createObjectURL(audioBlob);
 }
 
+// --- Lexicon-aware play counter for embed ---
+function getLexiconPlayCount(lexiconRecord) {
+  return lexiconRecord && lexiconRecord.stats && typeof lexiconRecord.stats.plays === 'number' ? lexiconRecord.stats.plays : 0;
+}
+
+async function incrementLexiconPlayCountEmbed(did, rkey) {
+  try {
+    // Fetch latest record
+    const res = await fetch(`https://public.api.bsky.app/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=cloud.soundsky.audio&rkey=${encodeURIComponent(rkey)}`);
+    const data = await res.json();
+    if (!data.value) return;
+    const record = data.value;
+    if (!record.stats) record.stats = {};
+    if (typeof record.stats.plays !== 'number') record.stats.plays = 0;
+    record.stats.plays++;
+    // Update record (public API can't write, so this is a no-op for public embeds)
+    // Optionally, POST to your own backend or show as optimistic only
+    // Optimistically update UI
+    const playCountEls = document.querySelectorAll('.embed-playcount span');
+    playCountEls.forEach(el => {
+      el.textContent = record.stats.plays;
+    });
+  } catch (err) {
+    console.error('Failed to increment play count (embed):', err);
+  }
+}
+
+// Patch renderMinimalPlayer to show lexicon play count if available
+function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconRecord = null, rkey = null, did = null, artworkOverride = null, postUri = null } = {}) {
+  let artworkUrl = artworkOverride || extractArtworkUrl(post);
+  let title = post.record?.text || '';
+  const artist = post.author?.displayName || post.author?.handle || '';
+  const facets = post.record && post.record.facets;
+  if (facets && Array.isArray(facets)) {
+    for (const facet of facets) {
+      if (facet.features && Array.isArray(facet.features)) {
+        for (const feature of facet.features) {
+          if (
+            feature.$type === 'app.bsky.richtext.facet#link' &&
+            feature.uri &&
+            feature.uri.match(/\.(png|jpe?g|gif)$/i)
+          ) {
+            title = title.replace(feature.uri, '').replace(/\n{2,}/g, '\n').trim();
+          }
+        }
+      }
+    }
+  }
+  // --- Play Counter UI ---
+  let playCounterHtml = '';
+  // Only show play counter for legacy posts
+  if (!lexiconRecord) {
+    playCounterHtml = `<img src="https://counterapi.com/counter.svg?key=${post.cid}&action=play&ns=soundskycloud&color=ff0000&label=Plays&readOnly=false" class="mr-3">`;
+  }
+  // --- Link to main SoundSky post ---
+  const postUrl = `/?post=${encodeURIComponent(postUri)}`;
+  // No placeholder for embed
+  const audioHtml = `
+    <div class=\"embed-audio-row\">
+      <button id=\"embed-play-btn\" class=\"embed-play-btn\" aria-label=\"Play/Pause\">
+        <svg id=\"embed-play-icon\" width=\"36\" height=\"36\" viewBox=\"0 0 36 36\" fill=\"none\">
+          <circle cx=\"18\" cy=\"18\" r=\"18\" fill=\"#3b82f6\"/>
+          <polygon class=\"play-shape\" points=\"14,11 27,18 14,25\" fill=\"white\"/>
+        </svg>
+      </button>
+      <div id=\"embed-waveform\" class=\"embed-waveform\"></div>
+    </div>
+    <div class=\"embed-time-row\"><span id=\"embed-current\">0:00</span> / <span id=\"embed-duration\">0:00</span></div>
+  `;
+  return `
+    <div class=\"embed-card\">
+      <div class=\"embed-artwork\">${artworkUrl ? `<a href="${postUrl}" target="_blank"><img src="${artworkUrl}" alt="Artwork"></a>` : ''}</div>
+      <div class=\"embed-title\"><a href="${postUrl}" target="_blank">${title}</a></div>
+      <div class=\"embed-artist\">${artist}</div>
+      <div class=\"flex items-center mt-2\">${playCounterHtml}</div>
+      ${audioHtml}
+    </div>
+  `;
+}
+
+// Patch renderEmbedPlayer to use lexicon play counter and increment logic
 async function renderEmbedPlayer(uri) {
   try {
     const res = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}`);
@@ -67,16 +148,82 @@ async function renderEmbedPlayer(uri) {
       container.innerHTML = '<div style="color:red">Track not found.</div>';
       return;
     }
-    // Extract audio info
+    // --- Lexicon-aware: check for soundskyid tag ---
+    let tags = post.record && post.record.tags;
+    let soundskyRkey = null;
+    if (tags && Array.isArray(tags)) {
+      for (const tag of tags) {
+        if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+          soundskyRkey = tag.split('=')[1];
+          break;
+        }
+      }
+    }
+    let lexiconRecord = null;
+    if (soundskyRkey) {
+      // Fetch lexicon record via user's PDS (not public API)
+      const did = post.author.did;
+      let pdsEndpoint = 'https://bsky.social';
+      try {
+        const plcRes = await fetch(`https://plc.directory/${did}`);
+        if (plcRes.ok) {
+          const plcData = await plcRes.json();
+          const found = plcData.service.find(s => s.id === '#atproto_pds');
+          if (found) pdsEndpoint = found.serviceEndpoint.replace(/\/$/, '');
+        }
+      } catch (e) {}
+      try {
+        const lexUrl = `${pdsEndpoint}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=cloud.soundsky.audio&rkey=${encodeURIComponent(soundskyRkey)}`;
+        let lexRes = await fetch(lexUrl);
+        let lexData;
+        if (!lexRes.ok) {
+          // fallback to CORS proxy
+          const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(lexUrl);
+          lexRes = await fetch(corsProxyUrl);
+        }
+        lexData = await lexRes.json();
+        if (lexData && lexData.value) {
+          lexiconRecord = lexData.value;
+        }
+      } catch (err) {
+        lexiconRecord = null;
+      }
+    }
+    // --- Extract audio and artwork ---
+    let userDid = post.author.did;
+    let artworkUrl = '';
+    let audioBlobRef = null;
+    let audioSize = null;
+    let title = '';
+    let artist = '';
+    if (lexiconRecord) {
+      if (lexiconRecord.artwork && lexiconRecord.artwork.ref) {
+        let blobRef = lexiconRecord.artwork.ref;
+        if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
+          blobRef = blobRef.$link;
+        } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+          blobRef = blobRef.toString();
+        }
+        artworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+      }
+      if (lexiconRecord.audio && lexiconRecord.audio.ref) {
+        let blobRef = lexiconRecord.audio.ref;
+        if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
+          blobRef = blobRef.$link;
+        } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+          blobRef = blobRef.toString();
+        }
+        audioBlobRef = blobRef;
+        audioSize = lexiconRecord.audio.size;
+      }
+      title = lexiconRecord.metadata?.title || lexiconRecord.text || '';
+      artist = lexiconRecord.metadata?.artist || post.author.displayName || post.author.handle || '';
+    } else {
     let embed = post.record && post.record.embed;
     let fileEmbed = null;
     if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
     else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-    if (!fileEmbed || !fileEmbed.file || !fileEmbed.file.mimeType.startsWith('audio/')) {
-      container.innerHTML = '<div style="color:red">No audio file found in this post.</div>';
-      return;
-    }
-    // Fix: ensure blobRef is a string
+      if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
     let blobRef = fileEmbed.file.ref;
     if (blobRef && typeof blobRef === 'object') {
       if (blobRef['$link']) {
@@ -84,32 +231,47 @@ async function renderEmbedPlayer(uri) {
       } else if (typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
         blobRef = blobRef.toString();
       } else {
-        console.log('Unknown blobRef object (no $link):', blobRef);
         blobRef = '';
       }
     }
-    if (typeof blobRef !== 'string') {
-      console.log('blobRef is not a string after extraction:', blobRef);
-      blobRef = '';
+        if (typeof blobRef === 'string') {
+          audioBlobRef = blobRef;
+        }
+        audioSize = fileEmbed.file.size;
+      }
+      artworkUrl = extractArtworkUrl(post);
+      title = post.record?.text || '';
+      artist = post.author?.displayName || post.author?.handle || '';
     }
-    const userDid = post.author.did;
-    let artworkUrl = extractArtworkUrl(post);
-    const isLargeFile = fileEmbed.file.size > 10 * 1024 * 1024;
+    if (!audioBlobRef) {
+      container.innerHTML = '<div style="color:red">No audio file found in this post.</div>';
+      return;
+    }
+    const isLargeFile = audioSize > 10 * 1024 * 1024;
     // Fetch audio blob immediately
     let audioBlobUrl;
     try {
-      audioBlobUrl = await fetchAudioBlobUrl(userDid, blobRef);
+      audioBlobUrl = await fetchAudioBlobUrl(userDid, audioBlobRef);
     } catch (e) {
       container.innerHTML = '<div style="color:red">Audio unavailable due to Bluesky CORS restrictions.</div>';
       return;
     }
-    updateMetaTags(post, audioBlobUrl, artworkUrl);
+    updateMetaTags({ record: { text: title }, author: { displayName: artist } }, audioBlobUrl, artworkUrl);
     // Render player UI (no lazy, no placeholder)
-    container.innerHTML = renderMinimalPlayer(post, { lazy: false, isLargeFile });
+    // Use oEmbed thumbnail_url as cover if available
+    let coverToShow = artworkUrl;
+    if (window.oembedResponse && window.oembedResponse.thumbnail_url) {
+      coverToShow = window.oembedResponse.thumbnail_url;
+    }
+    container.innerHTML = renderMinimalPlayer(
+      { record: { text: title }, author: { displayName: artist } },
+      { lazy: false, isLargeFile, lexiconRecord, rkey: soundskyRkey, did: userDid, artworkOverride: coverToShow, postUri: post.uri }
+    );
     // Setup player immediately
     const playBtn = document.getElementById('embed-play-btn');
     const playIcon = document.getElementById('embed-play-icon');
     const waveformDiv = document.getElementById('embed-waveform');
+    let hasCountedPlay = false;
     if (isLargeFile) {
       // Fallback <audio> for large files
       const fallbackAudio = document.createElement('audio');
@@ -131,6 +293,12 @@ async function renderEmbedPlayer(uri) {
           if (fallbackAudio.paused) {
             fallbackAudio.play();
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+            if (!hasCountedPlay) {
+              if (lexiconRecord && soundskyRkey && userDid) {
+                incrementLexiconPlayCountEmbed(userDid, soundskyRkey);
+              }
+              hasCountedPlay = true;
+            }
           } else {
             fallbackAudio.pause();
             playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><polygon class="play-shape" points="14,11 27,18 14,25" fill="white"/>`;
@@ -154,6 +322,12 @@ async function renderEmbedPlayer(uri) {
             } else {
               ws.play();
               playIcon.innerHTML = `<circle cx="18" cy="18" r="18" fill="#3b82f6"/><rect x="16" y="12" width="3" height="12" rx="1" fill="white"/><rect x="22" y="12" width="3" height="12" rx="1" fill="white"/>`;
+              if (!hasCountedPlay) {
+                if (lexiconRecord && soundskyRkey && userDid) {
+                  incrementLexiconPlayCountEmbed(userDid, soundskyRkey);
+                }
+                hasCountedPlay = true;
+              }
             }
           };
           window._embedWavesurfer.on('finish', () => {
@@ -214,56 +388,18 @@ function extractArtworkUrl(post) {
     const img = images[0];
     let imgUrl = '';
     if (img.image && img.image.ref) {
-      const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+      let blobRef = img.image.ref;
+      if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
+        blobRef = blobRef.$link;
+      } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+        blobRef = blobRef.toString();
+      }
       const userDid = post.author.did;
       imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
     }
     artworkUrl = imgUrl;
   }
   return artworkUrl;
-}
-
-function renderMinimalPlayer(post, { lazy = false, isLargeFile = false } = {}) {
-  let artworkUrl = extractArtworkUrl(post);
-  let title = post.record?.text || '';
-  const artist = post.author?.displayName || post.author?.handle || '';
-  const facets = post.record && post.record.facets;
-  if (facets && Array.isArray(facets)) {
-    for (const facet of facets) {
-      if (facet.features && Array.isArray(facet.features)) {
-        for (const feature of facet.features) {
-          if (
-            feature.$type === 'app.bsky.richtext.facet#link' &&
-            feature.uri &&
-            feature.uri.match(/\.(png|jpe?g|gif)$/i)
-          ) {
-            title = title.replace(feature.uri, '').replace(/\n{2,}/g, '\n').trim();
-          }
-        }
-      }
-    }
-  }
-  // No placeholder for embed
-  const audioHtml = `
-    <div class=\"embed-audio-row\">
-      <button id=\"embed-play-btn\" class=\"embed-play-btn\" aria-label=\"Play/Pause\">
-        <svg id=\"embed-play-icon\" width=\"36\" height=\"36\" viewBox=\"0 0 36 36\" fill=\"none\">
-          <circle cx=\"18\" cy=\"18\" r=\"18\" fill=\"#3b82f6\"/>
-          <polygon class=\"play-shape\" points=\"14,11 27,18 14,25\" fill=\"white\"/>
-        </svg>
-      </button>
-      <div id=\"embed-waveform\" class=\"embed-waveform\"></div>
-    </div>
-    <div class=\"embed-time-row\"><span id=\"embed-current\">0:00</span> / <span id=\"embed-duration\">0:00</span></div>
-  `;
-  return `
-    <div class=\"embed-card\">
-      <div class=\"embed-artwork\">${artworkUrl ? `<img src=\"${artworkUrl}\" alt=\"Artwork\">` : ''}</div>
-      <div class=\"embed-title\">${title}</div>
-      <div class=\"embed-artist\">${artist}</div>
-      ${audioHtml}
-    </div>
-  `;
 }
 
 function initWaveSurferEmbed(audioBlobUrl) {
