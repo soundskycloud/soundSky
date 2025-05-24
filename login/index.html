@@ -168,6 +168,28 @@
       const password = document.getElementById('password').value;
       const pdsInput = document.getElementById('pds-server');
       const pds = pdsInput && pdsInput.value.trim() ? pdsInput.value.trim() : 'https://bsky.social';
+
+      // Banlist check
+      try {
+        const resp = await fetch('/login/banlist.txt');
+        if (resp.ok) {
+          const banlistText = await resp.text();
+          const banlist = banlistText.split(/\r?\n/).map(u => u.trim().toLowerCase()).filter(Boolean);
+          if (banlist.includes(username.toLowerCase())) {
+            loginError.textContent = 'This account is banned.';
+            loginError.style.display = 'block';
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Login';
+            return;
+          }
+        } else {
+          // If banlist can't be found, allow any login
+        }
+      } catch (err) {
+        console.error('Error checking banlist:', err);
+        // Allow login if banlist can't be checked
+      }
+
       try {
         localStorage.setItem('bskyPds', pds);
         agent = new BskyAgent({ service: pds });
