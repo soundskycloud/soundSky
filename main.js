@@ -1456,10 +1456,10 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
     // Constrain cover size for all posts
     let artworkHtml = '';
     if (displayArtworkUrl) {
-        artworkHtml = `<div class=\"mb-2\"><img src=\"${displayArtworkUrl}\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\" onerror=\"this.onerror=null;this.src='/favicon.ico';\"></div>`;
+        artworkHtml = `<div class=\"mb-2\"><img src=\"${displayArtworkUrl}\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 min-h-24 min-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\" onerror=\"this.onerror=null;this.src='/favicon.ico';\"></div>`;
     } else {
         // Placeholder for missing cover
-        artworkHtml = `<div class=\"mb-2\"><img src=\"/favicon.ico\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\"></div>`;
+        artworkHtml = `<div class=\"mb-2\"><img src=\"/favicon.ico\" alt=\"Artwork\" class=\"soundsky-cover-img max-h-24 max-w-24 min-h-24 min-w-24 rounded-lg object-contain mx-auto\" style=\"max-width:96px;max-height:96px;background:#f3f4f6;\" loading=\"lazy\"></div>`;
     }
     // --- Player HTML ---
     let audioPlayerHtml = '';
