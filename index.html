@@ -1,419 +1,663 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta property="og:url" content="http://soundsky.cloud" />
-    <meta property="og:title" content="SoundSky" />
-    <meta property="og:description" content="A simple Soundcloud Alternative build on atproto + bsky.social" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:type" content="object" />
-    <meta property="og:image" content="https://repository-images.githubusercontent.com/980873116/d7275000-f5d1-4caf-8cd6-f12fb8567272" />
-    <meta property="og:logo" content="https://soundsky.cloud/favicon.ico" />
-    <meta property="og:site_name" content="SoundSky.cloud" />
-    <title>SoundSky: ATProto Audio Social Network</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = { darkMode: 'class' }
-    </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
-        }
-      
-        ::-webkit-scrollbar {
-          width: 8px; /* or height for horizontal */
-        }
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta property="og:url" content="http://soundsky.cloud" />
+		<meta property="og:title" content="SoundSky" />
+		<meta
+			property="og:description"
+			content="A simple Soundcloud Alternative build on atproto + bsky.social" />
+		<meta property="og:locale" content="en" />
+		<meta property="og:type" content="object" />
+		<meta
+			property="og:image"
+			content="https://repository-images.githubusercontent.com/980873116/d7275000-f5d1-4caf-8cd6-f12fb8567272" />
+		<meta property="og:logo" content="https://soundsky.cloud/favicon.ico" />
+		<meta property="og:site_name" content="SoundSky.cloud" />
+		<title>SoundSky: ATProto Audio Social Network</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script>
+			tailwind.config = { darkMode: 'class' };
+		</script>
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+		<style>
+			@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-        ::-webkit-scrollbar-track {
-          background: transparent;
-        }
+			body {
+				font-family: 'Inter', sans-serif;
+				background-color: #f8fafc;
+			}
 
-        ::-webkit-scrollbar-thumb {
-          background-color: rgba(0, 0, 0, 0.3); /* adjust opacity as needed */
-          border-radius: 4px;
-        }
+			::-webkit-scrollbar {
+				width: 8px; /* or height for horizontal */
+			}
 
-        /* Firefox-specific */
-        * {
-          scrollbar-width: thin; /* or 'auto' or 'none' */
-          scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
-        }
-        
-        .progress-bar {
-            height: 4px;
-            background-color: #e2e8f0;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background-color: #3b82f6;
-            width: 0%;
-            transition: width 0.1s linear;
-        }
-        
-        .post-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        
-        .wavesurfer.waveform {
-            cursor: pointer;
-            position: relative;
-            min-height: 48px;
-            background: transparent;
-        }
-        .wavesurfer-hover {
-            position: absolute;
-            left: 0;
-            top: 0;
-            z-index: 10;
-            pointer-events: none;
-            height: 100%;
-            width: 0;
-            mix-blend-mode: overlay;
-            background: rgba(255, 255, 255, 0.5);
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        .wavesurfer.waveform:hover .wavesurfer-hover {
-            opacity: 1;
-        }
-        .wavesurfer-time,
-        .wavesurfer-duration {
-            position: absolute;
-            z-index: 11;
-            top: 50%;
-            margin-top: -1px;
-            transform: translateY(-50%);
-            font-size: 11px;
-            background: rgba(0, 0, 0, 0.75);
-            padding: 2px 6px;
-            color: #ddd;
-            border-radius: 4px;
-            pointer-events: none;
-        }
-        .wavesurfer-time {
-            left: 0;
-        }
-        .wavesurfer-duration {
-            right: 0;
-        }
+			::-webkit-scrollbar-track {
+				background: transparent;
+			}
 
-        .wavesurfer.waveform::before {
-          --wave-line-color: #f2f2f2;
-        }
+			::-webkit-scrollbar-thumb {
+				background-color: rgba(
+					0,
+					0,
+					0,
+					0.3
+				); /* adjust opacity as needed */
+				border-radius: 4px;
+			}
 
-        .dark .wavesurfer.waveform::before {
-          --wave-line-color: #2c2c2cFF;
-        }
-        .wavesurfer.waveform::before {
-          content: "";
-          position: absolute;
-          top: 50%;
-          left: 0;
-          width: 100%;
-          border-top: 2px dotted var(--wave-line-color);
-          pointer-events: none;
-          transform: translateY(-50%);
-        }
-        
-    </style>
-    <style>
-    @media (max-width: 400px) {
-      .p-4 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
-      .max-w-4xl { max-width: 100vw !important; }
-      .post-card,
-      .bg-white,
-      .dark\\:bg-gray-800,
-      .bg-gray-50,
-      .dark\\:bg-gray-900 {
-        border-radius: 0.5rem !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        width: 100% !important;
-        box-sizing: border-box;
-      }
-      .post-card input[type='text'] {
-        font-size: 0.9rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-      }
-      .post-card form { gap: 0.25rem !important; }
-      .post-card .text-lg,
-      .post-card .text-xl { font-size: 1rem !important; }
-      .audioplayerbox,
-      .wavesurfer.waveform {
-        min-width: 0 !important;
-        width: 100% !important;
-        max-width: 100vw !important;
-      }
-      .post-card img.h-10,
-      .post-card img.h-14,
-      .post-card img.h-8,
-      .post-card img.h-7 {
-        height: 2rem !important;
-        width: 2rem !important;
-      }
-      .topnav-feed, .topnav-discover, .uploadBtn, .logoutBtn {
-        font-size: 0.9rem !important;
-        padding: 0.25rem 0.5rem !important;
-      }
-    }
-    </style>
-</head>
-<body class="bg-gray-50 dark:bg-gray-800 dark:text-gray-100">
-    <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <div class="hidden md:flex md:flex-shrink-0">
-            <div class="flex flex-col w-64 border-r border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
-                <div class="flex items-center mt-0 h-16 px-4 border-gray-200">
-                    <div class="flex items-center">
-                        <i class="fas fa-wave-square text-blue-500 text-2xl mr-2"></i>
-                        <span class="text-xl font-bold">SoundSky</span>
-                    </div>
-                </div>
-                <div class="flex flex-col flex-grow p-4 overflow-y-auto">
-                    <nav class="flex-1 space-y-2" id="sidebar">
-                        <a href="#" id="nav-discover" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg">
-                            <i class="fas fa-compass mr-3"></i>
-                            Discover
-                        </a>
-                        <a href="#" id="nav-feed" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg">
-                            <i class="fas fa-home mr-3"></i>
-                            Feed
-                        </a>
-                        <a href="#" id="nav-likes" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg">
-                            <i class="fas fa-heart mr-3"></i>
-                            Liked Posts
-                        </a>
-                    </nav>
-                </div>
-                <!-- GitHub link at bottom of sidebar -->
-                <div style="flex:0 0 auto; margin-top:auto; padding:1.5rem 0 0.5rem 0; text-align:center;">
-                  <a href="https://github.com/soundskycloud/soundSky/tree/main" target="_blank" title="View on GitHub" style="color:#888; display:inline-block; font-size:1.5rem; opacity:0.7; transition:opacity 0.2s;">
-                    <i class="fab fa-github"></i>
-                  </a>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Main content -->
-        <div class="flex flex-col flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
-            <!-- Top navigation -->
-            <div class="flex items-center h-16 px-4 border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
-                <div class="flex items-left md:hidden">
-                    <div class="flex items-center mr-4">
-                        <i class="fas fa-wave-square text-blue-500 text-xl mr-2"></i>
-                        <span class="text-lg font-bold">&nbsp;</span>
-                    </div>
-                </div>
-                <!-- Search input: use all available flex space -->
-                <div class="flex-1 min-w-0 mx-2">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400"></i>
-                        </div>
-                        <input id="top-search-input" name="top-search" type="text" class="block w-full pl-10 pr-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="off">
-                    </div>
-                </div>
-                <!-- Unified top nav actions -->
-                <div class="flex items-center justify-end space-x-2 md:space-x-4" id="top-nav-actions">
-                    <!-- Mobile nav: Feed and Discover -->
-                    <nav class="flex md:hidden space-x-2 mr-2">
-                        <a href="#" id="topnav-feed" class="flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg">
-                            <i class="fas fa-home"></i>
-                        </a>
-                        <a href="#" id="topnav-discover" class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
-                            <i class="fas fa-compass"></i>
-                        </a>
-                    </nav>
-                    <!-- Theme toggle -->
-                    <button id="theme-toggle" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none" title="Toggle light/dark mode">
-                        <i id="theme-toggle-icon" class="fas fa-moon"></i>
-                    </button>
-                    <!-- Upload Button -->
-                    <button id="upload-btn" class="ml-2 px-3 py-1 text-xs text-blue-600 rounded hover:bg-blue-50 flex items-center">
-                        <i class="fas fa-upload mr-2"></i>
-                        <span class="hidden sm:inline">Upload</span>
-                    </button>
-                    <!-- Volume Button and Slider -->
-                    <div class="relative flex items-center">
-                        <button id="volume-btn" class="ml-2 px-2 py-1 text-xs text-gray-600 rounded hover:bg-gray-100 flex items-center" title="Volume">
-                            <i class="fas fa-volume-high"></i>
-                        </button>
-                        <input id="volume-slider" type="range" min="0" max="1" step="0.01" class="absolute left-1/2 -translate-x-1/2 w-8 h-32 bg-gray-200 rounded-lg appearance-none cursor-pointer hidden z-50 volume-slider" style="top:100%;width:12px;bottom:auto;display:none;margin-top:0.5rem;writing-mode:vertical-lr;transform:translateX(-50%) rotate(180deg);" />
-                    </div>
-                    <!-- Logout Button -->
-                    <button id="logout-btn" class="ml-2 px-3 py-1 text-xs text-gray-600 rounded hover:bg-gray-100 flex items-center" title="Logout">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
-                    <!-- Notification Button -->
-                    <div class="relative" id="notification-container">
-                      <button id="notification-btn" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none relative" title="Notifications">
-                        <i id="notification-bell" class="fas fa-bell"></i>
-                        <span id="notification-badge" class="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 hidden">!</span>
-                      </button>
-                      <div id="notification-dropdown" class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 hidden" style="min-width:260px;max-height:420px;overflow-y:auto;">
-                        <div class="p-3 text-sm text-gray-500">Loading notifications...</div>
-                      </div>
-                    </div>
-                    <!-- User avatar -->
-                    <button class="flex items-center text-sm rounded-full focus:outline-none">
-                        <img id="current-user-avatar" class="h-8 w-8 rounded-full" src="/favicon.ico" alt="User profile">
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Content area -->
-            <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
-                <div class="mx-auto">
-                    <!-- Create Audio Post -->
-                    <div id="create-audio-post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6 ml-2 mt-2 hidden">
-                        <form id="audio-post-form" class="flex flex-col gap-3">
-                            <div class="flex items-center gap-3">
-                                <label for="audio-file" class="flex items-center gap-2 cursor-pointer w-full">
-                                    <span class="inline-flex items-center justify-center w-10 h-10 bg-blue-100 text-blue-600 rounded-full"><i class="fas fa-music"></i></span>
-                                    <input id="audio-file" type="file" accept=".mp3,audio/mpeg" class="hidden" required />
-                                    <span id="audio-file-label" class="text-sm text-gray-500">Choose MP3…</span>
-                                </label>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                <input id="meta-title" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Title (required)" maxlength="100" required />
-                                <input id="meta-artist" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Artist (required)" maxlength="100" required />
-                                <!--
-                                <input id="meta-album" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Album" maxlength="100" />
-                                <input id="meta-genre" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Genre" maxlength="50" />
-                                <input id="meta-year" type="number" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Year" min="1900" max="2100" />
-                                <input id="meta-bpm" type="number" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="BPM" min="0" max="400" />
-                                <input id="meta-key" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Key (e.g. C#m)" maxlength="10" />
-                                <input id="meta-isrc" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="ISRC" maxlength="20" />
+			/* Firefox-specific */
+			* {
+				scrollbar-width: thin; /* or 'auto' or 'none' */
+				scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+			}
+
+			.progress-bar {
+				height: 4px;
+				background-color: #e2e8f0;
+			}
+
+			.progress-fill {
+				height: 100%;
+				background-color: #3b82f6;
+				width: 0%;
+				transition: width 0.1s linear;
+			}
+
+			.post-card:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+					0 4px 6px -2px rgba(0, 0, 0, 0.05);
+			}
+
+			.wavesurfer.waveform {
+				cursor: pointer;
+				position: relative;
+				min-height: 96px;
+				background: transparent;
+			}
+			.wavesurfer-hover {
+				position: absolute;
+				left: 0;
+				top: 0;
+				z-index: 10;
+				pointer-events: none;
+				height: 100%;
+				width: 0;
+				mix-blend-mode: overlay;
+				background: rgba(255, 255, 255, 0.5);
+				opacity: 0;
+				transition: opacity 0.2s ease;
+			}
+			.wavesurfer.waveform:hover .wavesurfer-hover {
+				opacity: 1;
+			}
+			.wavesurfer-time,
+			.wavesurfer-duration {
+				position: absolute;
+				z-index: 11;
+				bottom: 1px;
+				font-size: 12px;
+				background: rgba(0, 0, 0, 0.75);
+				padding: 2px 4px;
+				color: #ffffff;
+				border-radius: 3px;
+				pointer-events: none;
+			}
+			.wavesurfer-time {
+				left: 1px;
+			}
+			.wavesurfer-duration {
+				right: 1px;
+			}
+
+			.wavesurfer.waveform::before {
+				--wave-line-color: #f2f2f2;
+			}
+
+			.dark .wavesurfer.waveform::before {
+				--wave-line-color: #2c2c2cff;
+			}
+			.wavesurfer.waveform::before {
+				content: '';
+				position: absolute;
+				top: 50%;
+				left: 0;
+				width: 100%;
+				border-top: 2px dotted var(--wave-line-color);
+				pointer-events: none;
+				transform: translateY(-50%);
+			}
+		</style>
+		<style>
+			@media (max-width: 400px) {
+				.p-4 {
+					padding-left: 0.5rem !important;
+					padding-right: 0.5rem !important;
+				}
+				.max-w-4xl {
+					max-width: 100vw !important;
+				}
+				.post-card,
+				.bg-white,
+				.dark\\:bg-gray-800,
+				.bg-gray-50,
+				.dark\\:bg-gray-900 {
+					border-radius: 0.5rem !important;
+					margin-left: 0 !important;
+					margin-right: 0 !important;
+					width: 100% !important;
+					box-sizing: border-box;
+				}
+				.post-card input[type='text'] {
+					font-size: 0.9rem !important;
+					padding-left: 0.5rem !important;
+					padding-right: 0.5rem !important;
+				}
+				.post-card form {
+					gap: 0.25rem !important;
+				}
+				.post-card .text-lg,
+				.post-card .text-xl {
+					font-size: 1rem !important;
+				}
+				.audioplayerbox,
+				.wavesurfer.waveform {
+					min-width: 0 !important;
+					width: 100% !important;
+					max-width: 100vw !important;
+				}
+				.post-card img.h-10,
+				.post-card img.h-14,
+				.post-card img.h-8,
+				.post-card img.h-7 {
+					height: 2rem !important;
+					width: 2rem !important;
+				}
+				.topnav-feed,
+				.topnav-discover,
+				.uploadBtn,
+				.logoutBtn {
+					font-size: 0.9rem !important;
+					padding: 0.25rem 0.5rem !important;
+				}
+			}
+		</style>
+	</head>
+	<body class="bg-gray-50 dark:bg-gray-800 dark:text-gray-100">
+		<div class="flex h-screen overflow-hidden">
+			<!-- Sidebar -->
+			<div class="hidden md:flex md:flex-shrink-0">
+				<div
+					class="flex flex-col w-64 bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+					<div
+						class="flex items-center h-16 px-4 mt-0 border-gray-200">
+						<div class="flex items-center">
+							<i
+								class="mr-2 text-2xl text-blue-500 fas fa-wave-square"></i>
+							<span class="text-xl font-bold">SoundSky</span>
+						</div>
+					</div>
+					<div class="flex flex-col flex-grow p-4 overflow-y-auto">
+						<nav class="flex-1 space-y-2" id="sidebar">
+							<a
+								href="#"
+								id="nav-discover"
+								class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg">
+								<i class="mr-3 fas fa-compass"></i>
+								Discover
+							</a>
+							<a
+								href="#"
+								id="nav-feed"
+								class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg">
+								<i class="mr-3 fas fa-home"></i>
+								Feed
+							</a>
+							<a
+								href="#"
+								id="nav-likes"
+								class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg">
+								<i class="mr-3 fas fa-heart"></i>
+								Liked Posts
+							</a>
+						</nav>
+					</div>
+					<!-- GitHub link at bottom of sidebar -->
+					<div
+						style="
+							flex: 0 0 auto;
+							margin-top: auto;
+							padding: 1.5rem 0 0.5rem 0;
+							text-align: center;
+						">
+						<a
+							href="https://github.com/soundskycloud/soundSky/tree/main"
+							target="_blank"
+							title="View on GitHub"
+							style="
+								color: #888;
+								display: inline-block;
+								font-size: 1.5rem;
+								opacity: 0.7;
+								transition: opacity 0.2s;
+							">
+							<i class="fab fa-github"></i>
+						</a>
+					</div>
+				</div>
+			</div>
+
+			<!-- Main content -->
+			<div
+				class="flex flex-col flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
+				<!-- Top navigation -->
+				<div
+					class="flex items-center h-16 px-4 bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+					<div class="flex items-left md:hidden">
+						<div class="flex items-center mr-4">
+							<i
+								class="mr-2 text-xl text-blue-500 fas fa-wave-square"></i>
+							<span class="text-lg font-bold">&nbsp;</span>
+						</div>
+					</div>
+					<!-- Search input: use all available flex space -->
+					<div class="flex-1 min-w-0 mx-2">
+						<div class="relative">
+							<div
+								class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+								<i class="text-gray-400 fas fa-search"></i>
+							</div>
+							<input
+								id="top-search-input"
+								name="top-search"
+								type="text"
+								class="block w-full py-2 pl-10 pr-3 bg-gray-100 rounded-lg dark:bg-gray-700 bg-gray-50 focus:ring-blue-500 focus:border-blue-500"
+								placeholder="Search"
+								autocomplete="off"
+								autocorrect="off"
+								spellcheck="false"
+								autocapitalize="off" />
+						</div>
+					</div>
+					<!-- Unified top nav actions -->
+					<div
+						class="flex items-center justify-end space-x-2 md:space-x-4"
+						id="top-nav-actions">
+						<!-- Mobile nav: Feed and Discover -->
+						<nav class="flex mr-2 space-x-2 md:hidden">
+							<a
+								href="#"
+								id="topnav-feed"
+								class="flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg">
+								<i class="fas fa-home"></i>
+							</a>
+							<a
+								href="#"
+								id="topnav-discover"
+								class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
+								<i class="fas fa-compass"></i>
+							</a>
+						</nav>
+						<!-- Theme toggle -->
+						<button
+							id="theme-toggle"
+							class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+							title="Toggle light/dark mode">
+							<i id="theme-toggle-icon" class="fas fa-moon"></i>
+						</button>
+						<!-- Upload Button -->
+						<button
+							id="upload-btn"
+							class="flex items-center px-3 py-1 ml-2 text-xs text-blue-600 rounded hover:bg-blue-50">
+							<i class="mr-2 fas fa-upload"></i>
+							<span class="hidden sm:inline">Upload</span>
+						</button>
+						<!-- Volume Button and Slider -->
+						<div class="relative flex items-center">
+							<button
+								id="volume-btn"
+								class="flex items-center px-2 py-1 ml-2 text-xs text-gray-600 rounded hover:bg-gray-100"
+								title="Volume">
+								<i class="fas fa-volume-high"></i>
+							</button>
+							<input
+								id="volume-slider"
+								type="range"
+								min="0"
+								max="1"
+								step="0.01"
+								class="absolute z-50 hidden w-8 h-32 -translate-x-1/2 bg-gray-200 rounded-lg appearance-none cursor-pointer left-1/2 volume-slider"
+								style="
+									top: 100%;
+									width: 12px;
+									bottom: auto;
+									display: none;
+									margin-top: 0.5rem;
+									writing-mode: vertical-lr;
+									transform: translateX(-50%) rotate(180deg);
+								" />
+						</div>
+						<!-- Logout Button -->
+						<button
+							id="logout-btn"
+							class="flex items-center px-3 py-1 ml-2 text-xs text-gray-600 rounded hover:bg-gray-100"
+							title="Logout">
+							<i class="fas fa-sign-out-alt"></i>
+						</button>
+						<!-- Notification Button -->
+						<div class="relative" id="notification-container">
+							<button
+								id="notification-btn"
+								class="relative p-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+								title="Notifications">
+								<i
+									id="notification-bell"
+									class="fas fa-bell"></i>
+								<span
+									id="notification-badge"
+									class="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 hidden"
+									>!</span
+								>
+							</button>
+							<div
+								id="notification-dropdown"
+								class="absolute right-0 z-50 hidden mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-80 dark:bg-gray-800 dark:border-gray-700"
+								style="
+									min-width: 260px;
+									max-height: 420px;
+									overflow-y: auto;
+								">
+								<div class="p-3 text-sm text-gray-500">
+									Loading notifications...
+								</div>
+							</div>
+						</div>
+						<!-- User avatar -->
+						<button
+							class="flex items-center text-sm rounded-full focus:outline-none">
+							<img
+								id="current-user-avatar"
+								class="w-8 h-8 rounded-full"
+								src="/favicon.ico"
+								alt="User profile" />
+						</button>
+					</div>
+				</div>
+
+				<!-- Content area -->
+				<div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+					<div class="mx-auto">
+						<!-- Create Audio Post -->
+						<div
+							id="create-audio-post"
+							class="hidden p-4 mt-2 mb-6 ml-2 bg-white shadow-sm dark:bg-gray-800 rounded-xl">
+							<form
+								id="audio-post-form"
+								class="flex flex-col gap-3">
+								<div class="flex items-center gap-3">
+									<label
+										for="audio-file"
+										class="flex items-center w-full gap-2 cursor-pointer">
+										<span
+											class="inline-flex items-center justify-center w-10 h-10 text-blue-600 bg-blue-100 rounded-full"
+											><i class="fas fa-music"></i
+										></span>
+										<input
+											id="audio-file"
+											type="file"
+											accept=".mp3,audio/mpeg"
+											class="hidden"
+											required />
+										<span
+											id="audio-file-label"
+											class="text-sm text-gray-500"
+											>Choose MP3…</span
+										>
+									</label>
+								</div>
+								<div
+									class="grid grid-cols-1 gap-2 md:grid-cols-2">
+									<input
+										id="meta-title"
+										type="text"
+										class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700"
+										placeholder="Title (required)"
+										maxlength="100"
+										required />
+									<input
+										id="meta-artist"
+										type="text"
+										class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700"
+										placeholder="Artist (required)"
+										maxlength="100"
+										required />
+									<!--
+                                <input id="meta-album" type="text" class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700" placeholder="Album" maxlength="100" />
+                                <input id="meta-genre" type="text" class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700" placeholder="Genre" maxlength="50" />
+                                <input id="meta-year" type="number" class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700" placeholder="Year" min="1900" max="2100" />
+                                <input id="meta-bpm" type="number" class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700" placeholder="BPM" min="0" max="400" />
+                                <input id="meta-key" type="text" class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700" placeholder="Key (e.g. C#m)" maxlength="10" />
+                                <input id="meta-isrc" type="text" class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700" placeholder="ISRC" maxlength="20" />
                                 -->
-                                <input id="meta-license" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="License" maxlength="50" />
-                                <input id="meta-tags" type="text" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg" placeholder="Tags (comma-separated)" maxlength="100" />
-                            </div>
-                            <textarea id="audio-caption" class="block w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" rows="2" placeholder="Post Content (bsky)" maxlength="250" ></textarea>
-                            <button id="audio-post-btn" type="submit" class="self-end px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Upload Post</button>
-                            <div id="audio-post-status" class="text-sm mt-2"></div>
-                        </form>
-                    </div>
-                    
-                    <!-- Feed -->
-                    <div id="feed" class="space-y-4">
-                        <div id="feed-loading" class="text-center text-gray-400 py-8 hidden">
-                          <img src="loading.webp" style="margin:auto;width: 80px;">
-                      </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+									<input
+										id="meta-license"
+										type="text"
+										class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700"
+										placeholder="License"
+										maxlength="50" />
+									<input
+										id="meta-tags"
+										type="text"
+										class="px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700"
+										placeholder="Tags (comma-separated)"
+										maxlength="100" />
+								</div>
+								<textarea
+									id="audio-caption"
+									class="block w-full px-3 py-2 bg-gray-100 rounded-lg dark:bg-gray-700 bg-gray-50 focus:ring-blue-500 focus:border-blue-500"
+									rows="2"
+									placeholder="Post Content (bsky)"
+									maxlength="250"></textarea>
+								<button
+									id="audio-post-btn"
+									type="submit"
+									class="self-end px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+									Upload Post
+								</button>
+								<div
+									id="audio-post-status"
+									class="mt-2 text-sm"></div>
+							</form>
+						</div>
 
-    <!-- Login Form -->
-    <div id="login-form" style="display:none" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
-        <div class="bg-white rounded-xl shadow-lg p-8 w-80 flex flex-col items-center">
-            <h2 class="text-xl font-bold mb-4 text-gray-900">Sign in to SoundSky</h2>
-            <input id="username" class="mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 text-gray-900" placeholder="bsky handle (e.g. user.bsky.social)" />
-            <input id="password" type="password" class="mb-4 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 text-gray-900" placeholder="App password" />
-            <label for="pds-server" class="block text-sm font-medium text-gray-700 mb-1">Server</label>
-            <input id="pds-server" name="pds-server" type="text" class="mb-4 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 text-gray-900" value="https://bsky.social" placeholder="https://bsky.social" />
-            <button id="login-btn" class="w-full px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Login</button>
-            <div id="login-error" class="text-red-500 text-sm mt-2 hidden"></div>
-            <div class="text-xs text-gray-500 mt-4">Get an app password at <a href="https://bsky.app/settings/app-passwords" target="_blank" class="underline">bsky.app/settings/app-passwords</a></div>
-            <div class="text-xs text-gray-500 mt-4">No account? <a href="https://bsky.app/settings/app-passwords" target="_blank" class="underline">Sign up on bluesky</a> and login using your new credentials</div>
-        </div>
-    </div>
+						<!-- Feed -->
+						<div id="feed" class="space-y-4">
+							<div
+								id="feed-loading"
+								class="hidden py-8 text-center text-gray-400">
+								<img
+									src="loading.webp"
+									style="margin: auto; width: 80px" />
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 
-    <script type="module" src="main.js"></script>
-    <script src="https://unpkg.com/wavesurfer.js"></script>
-    <script>
-    // Show selected file name in the label
-    document.addEventListener('DOMContentLoaded', function() {
-      var input = document.getElementById('audio-file');
-      var label = document.getElementById('audio-file-label');
-      if (input && label) {
-        input.addEventListener('change', function() {
-          label.textContent = input.files && input.files.length ? input.files[0].name : 'Choose MP3 file…';
-        });
-      }
-    });
-    </script>
-    <script>
-    // Light/dark mode toggle with localStorage persistence
-    document.addEventListener('DOMContentLoaded', function() {
-      const toggleBtn = document.getElementById('theme-toggle');
-      const icon = document.getElementById('theme-toggle-icon');
-      if (!toggleBtn || !icon) return;
-      // Restore theme from localStorage or system
-      const userTheme = localStorage.getItem('soundsky-theme');
-      if (userTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else if (userTheme === 'light') {
-        document.documentElement.classList.remove('dark');
-      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark');
-      }
-      function setIcon() {
-        if (document.documentElement.classList.contains('dark')) {
-          icon.classList.remove('fa-moon');
-          icon.classList.add('fa-sun');
-        } else {
-          icon.classList.remove('fa-sun');
-          icon.classList.add('fa-moon');
-        }
-      }
-      setIcon();
-      toggleBtn.onclick = function() {
-        const isDark = document.documentElement.classList.toggle('dark');
-        localStorage.setItem('soundsky-theme', isDark ? 'dark' : 'light');
-        setIcon();
-      };
-    });
-    </script>
-    <script>
-    // Mobile nav logic: make topnav-feed and topnav-discover trigger the same as sidebar
-    document.addEventListener('DOMContentLoaded', function() {
-      var topFeed = document.getElementById('topnav-feed');
-      var topDiscover = document.getElementById('topnav-discover');
-      if (topFeed) topFeed.onclick = function(e) { e.preventDefault(); document.getElementById('nav-feed').click(); };
-      if (topDiscover) topDiscover.onclick = function(e) { e.preventDefault(); document.getElementById('nav-discover').click(); };
-    });
-    </script>
-    <script>
-    // --- Top bar logo and user avatar navigation ---
-    document.addEventListener('DOMContentLoaded', function() {
-      // Logo click navigates to Feed
-      var logoEls = document.querySelectorAll('.fa-wave-square, .text-xl.font-bold, .text-lg.font-bold');
-      logoEls.forEach(function(el) {
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', function() {
-          var feedBtn = document.getElementById('nav-feed');
-          if (feedBtn) feedBtn.click();
-        });
-      });
-      // User avatar click navigates to /?artist={did}
-      var avatar = document.getElementById('current-user-avatar');
-      if (avatar) {
-        avatar.style.cursor = 'pointer';
-        avatar.addEventListener('click', function() {
-          try {
-            var session = localStorage.getItem('bskySession');
-            if (session) {
-              var did = JSON.parse(session).handle || JSON.parse(session).did;
-              if (did) {
-                window.location.href = '/?artist=' + encodeURIComponent(did);
-                return;
-              }
-            }
-          } catch (e) {}
-          // fallback: do nothing or show a message
-        });
-      }
-    });
-    </script>
-</body>
+		<!-- Login Form -->
+		<div
+			id="login-form"
+			style="display: none"
+			class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50">
+			<div
+				class="flex flex-col items-center p-8 bg-white shadow-lg rounded-xl w-80">
+				<h2 class="mb-4 text-xl font-bold text-gray-900">
+					Sign in to SoundSky
+				</h2>
+				<input
+					id="username"
+					class="w-full px-3 py-2 mb-3 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500"
+					placeholder="bsky handle (e.g. user.bsky.social)" />
+				<input
+					id="password"
+					type="password"
+					class="w-full px-3 py-2 mb-4 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500"
+					placeholder="App password" />
+				<label
+					for="pds-server"
+					class="block mb-1 text-sm font-medium text-gray-700"
+					>Server</label
+				>
+				<input
+					id="pds-server"
+					name="pds-server"
+					type="text"
+					class="w-full px-3 py-2 mb-4 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500"
+					value="https://bsky.social"
+					placeholder="https://bsky.social" />
+				<button
+					id="login-btn"
+					class="w-full px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+					Login
+				</button>
+				<div
+					id="login-error"
+					class="hidden mt-2 text-sm text-red-500"></div>
+				<div class="mt-4 text-xs text-gray-500">
+					Get an app password at
+					<a
+						href="https://bsky.app/settings/app-passwords"
+						target="_blank"
+						class="underline"
+						>bsky.app/settings/app-passwords</a
+					>
+				</div>
+				<div class="mt-4 text-xs text-gray-500">
+					No account?
+					<a
+						href="https://bsky.app/settings/app-passwords"
+						target="_blank"
+						class="underline"
+						>Sign up on bluesky</a
+					>
+					and login using your new credentials
+				</div>
+			</div>
+		</div>
+
+		<script type="module" src="main.js"></script>
+		<script src="https://unpkg.com/wavesurfer.js"></script>
+		<script>
+			// Show selected file name in the label
+			document.addEventListener('DOMContentLoaded', function () {
+				var input = document.getElementById('audio-file');
+				var label = document.getElementById('audio-file-label');
+				if (input && label) {
+					input.addEventListener('change', function () {
+						label.textContent =
+							input.files && input.files.length
+								? input.files[0].name
+								: 'Choose MP3 file…';
+					});
+				}
+			});
+		</script>
+		<script>
+			// Light/dark mode toggle with localStorage persistence
+			document.addEventListener('DOMContentLoaded', function () {
+				const toggleBtn = document.getElementById('theme-toggle');
+				const icon = document.getElementById('theme-toggle-icon');
+				if (!toggleBtn || !icon) return;
+				// Restore theme from localStorage or system
+				const userTheme = localStorage.getItem('soundsky-theme');
+				if (userTheme === 'dark') {
+					document.documentElement.classList.add('dark');
+				} else if (userTheme === 'light') {
+					document.documentElement.classList.remove('dark');
+				} else if (
+					window.matchMedia('(prefers-color-scheme: dark)').matches
+				) {
+					document.documentElement.classList.add('dark');
+				}
+				function setIcon() {
+					if (document.documentElement.classList.contains('dark')) {
+						icon.classList.remove('fa-moon');
+						icon.classList.add('fa-sun');
+					} else {
+						icon.classList.remove('fa-sun');
+						icon.classList.add('fa-moon');
+					}
+				}
+				setIcon();
+				toggleBtn.onclick = function () {
+					const isDark =
+						document.documentElement.classList.toggle('dark');
+					localStorage.setItem(
+						'soundsky-theme',
+						isDark ? 'dark' : 'light',
+					);
+					setIcon();
+				};
+			});
+		</script>
+		<script>
+			// Mobile nav logic: make topnav-feed and topnav-discover trigger the same as sidebar
+			document.addEventListener('DOMContentLoaded', function () {
+				var topFeed = document.getElementById('topnav-feed');
+				var topDiscover = document.getElementById('topnav-discover');
+				if (topFeed)
+					topFeed.onclick = function (e) {
+						e.preventDefault();
+						document.getElementById('nav-feed').click();
+					};
+				if (topDiscover)
+					topDiscover.onclick = function (e) {
+						e.preventDefault();
+						document.getElementById('nav-discover').click();
+					};
+			});
+		</script>
+		<script>
+			// --- Top bar logo and user avatar navigation ---
+			document.addEventListener('DOMContentLoaded', function () {
+				// Logo click navigates to Feed
+				var logoEls = document.querySelectorAll(
+					'.fa-wave-square, .text-xl.font-bold, .text-lg.font-bold',
+				);
+				logoEls.forEach(function (el) {
+					el.style.cursor = 'pointer';
+					el.addEventListener('click', function () {
+						var feedBtn = document.getElementById('nav-feed');
+						if (feedBtn) feedBtn.click();
+					});
+				});
+				// User avatar click navigates to /?artist={did}
+				var avatar = document.getElementById('current-user-avatar');
+				if (avatar) {
+					avatar.style.cursor = 'pointer';
+					avatar.addEventListener('click', function () {
+						try {
+							var session = localStorage.getItem('bskySession');
+							if (session) {
+								var did =
+									JSON.parse(session).handle ||
+									JSON.parse(session).did;
+								if (did) {
+									window.location.href =
+										'/?artist=' + encodeURIComponent(did);
+									return;
+								}
+							}
+						} catch (e) {}
+						// fallback: do nothing or show a message
+					});
+				}
+			});
+		</script>
+	</body>
 </html>

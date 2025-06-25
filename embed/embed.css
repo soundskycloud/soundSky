@@ -1,94 +1,95 @@
 body {
-  margin: 0;
-  background: #fff;
-  font-family: system-ui, sans-serif;
+	margin: 0;
+	background: #fff;
+	font-family: system-ui, sans-serif;
 }
 #embed-player {
-  max-width: 420px;
-  margin: 0 auto;
-  padding: 1rem;
+	max-width: 420px;
+	margin: 0 auto;
+	padding: 1rem;
 }
 .embed-card {
-  background: #f9f9f9;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px #0001;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+	background: #f9f9f9;
+	border-radius: 12px;
+	box-shadow: 0 2px 8px #0001;
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 }
 .embed-artwork img {
-  max-width: 100%;
-  max-height: 160px;
-  border-radius: 8px;
-  margin-bottom: 1rem;
+	max-width: 100%;
+	max-height: 160px;
+	border-radius: 8px;
+	margin-bottom: 1rem;
 }
 .embed-title {
-  font-size: 1.1rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-  text-align: center;
+	font-size: 1.1rem;
+	font-weight: bold;
+	margin-bottom: 0.5rem;
+	text-align: center;
 }
 .embed-artist {
-  color: #555;
-  margin-bottom: 1rem;
-  text-align: center;
+	color: #555;
+	margin-bottom: 1rem;
+	text-align: center;
 }
 .embed-audio {
-  width: 100%;
-  margin-top: 1rem;
+	width: 100%;
+	margin-top: 1rem;
 }
 .embed-audio-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 8px;
-  margin-top: 0;
+	display: flex;
+	align-items: center;
+	width: 100%;
+	gap: 8px;
+	margin-top: 0;
 }
 .embed-play-btn {
-  width: 48px;
-  height: 48px;
-  border: none;
-  background: none;
-  padding: 0;
-  border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(59,130,246,0.10);
-  transition: transform 0.1s, box-shadow 0.1s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
+	width: 48px;
+	height: 48px;
+	border: none;
+	background: none;
+	padding: 0;
+	border-radius: 50%;
+	box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+	transition: transform 0.1s, box-shadow 0.1s;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	outline: none;
 }
 .embed-play-btn:focus,
 .embed-play-btn:hover {
-  transform: scale(1.08);
-  box-shadow: 0 4px 16px rgba(59,130,246,0.18);
+	transform: scale(1.08);
+	box-shadow: 0 4px 16px rgba(59, 130, 246, 0.18);
 }
 .embed-waveform {
-  flex: 1 1 0%;
-  min-width: 120px;
-  height: 48px;
-  width: 100%;
-  box-sizing: border-box;
-  position: relative;
+	flex: 1 1 0%;
+	min-width: 120px;
+	height: 96px;
+	width: 100%;
+	box-sizing: border-box;
+	position: relative;
 }
 .embed-time-row {
-  margin-top: 0.5rem;
-  text-align: left;
-  font-size: 0.6rem;
-  color: #333;
-  width: 100%;
-  display: block;
+	margin-top: 0.5rem;
+	text-align: left;
+	font-size: 0.6rem;
+	color: #333;
+	width: 100%;
+	display: block;
 }
-.embed-time, .embed-duration {
-  position: static;
-  left: auto;
-  right: auto;
-  top: auto;
-  transform: none;
-  font-size: inherit;
-  color: inherit;
-  font-weight: inherit;
-  pointer-events: auto;
-  display: inline;
-} 
+.embed-time,
+.embed-duration {
+	position: static;
+	left: auto;
+	right: auto;
+	top: auto;
+	transform: none;
+	font-size: inherit;
+	color: inherit;
+	font-weight: inherit;
+	pointer-events: auto;
+	display: inline;
+}
