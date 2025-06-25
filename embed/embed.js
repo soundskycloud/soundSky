@@ -48,7 +48,7 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
     // fallback to CORS proxy
     const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
     try {
-    resp = await fetch(corsProxyUrl);
+      resp = await fetch(corsProxyUrl);
     } catch (e) {
       resp = { ok: false };
     }
@@ -171,7 +171,7 @@ async function renderEmbedPlayer(uri) {
           const found = plcData.service.find(s => s.id === '#atproto_pds');
           if (found) pdsEndpoint = found.serviceEndpoint.replace(/\/$/, '');
         }
-      } catch (e) {}
+      } catch (e) { }
       try {
         const lexUrl = `${pdsEndpoint}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=cloud.soundsky.audio&rkey=${encodeURIComponent(soundskyRkey)}`;
         let lexRes = await fetch(lexUrl);
@@ -219,21 +219,21 @@ async function renderEmbedPlayer(uri) {
       title = lexiconRecord.metadata?.title || lexiconRecord.text || '';
       artist = lexiconRecord.metadata?.artist || post.author.displayName || post.author.handle || '';
     } else {
-    let embed = post.record && post.record.embed;
-    let fileEmbed = null;
-    if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-    else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+      let embed = post.record && post.record.embed;
+      let fileEmbed = null;
+      if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+      else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
       if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-    let blobRef = fileEmbed.file.ref;
-    if (blobRef && typeof blobRef === 'object') {
-      if (blobRef['$link']) {
-        blobRef = blobRef['$link'];
-      } else if (typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
-        blobRef = blobRef.toString();
-      } else {
-        blobRef = '';
-      }
-    }
+        let blobRef = fileEmbed.file.ref;
+        if (blobRef && typeof blobRef === 'object') {
+          if (blobRef['$link']) {
+            blobRef = blobRef['$link'];
+          } else if (typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
+            blobRef = blobRef.toString();
+          } else {
+            blobRef = '';
+          }
+        }
         if (typeof blobRef === 'string') {
           audioBlobRef = blobRef;
         }
@@ -284,7 +284,7 @@ async function renderEmbedPlayer(uri) {
       waveformDiv.appendChild(fallbackAudio);
       // Show message
       let msg = document.createElement('div');
-      msg.className = 'text-xs text-gray-400 mt-2';
+      msg.className = 'mt-2 text-xs text-gray-400';
       msg.textContent = 'Waveform unavailable for large files';
       waveformDiv.appendChild(msg);
       // Play/pause button logic
@@ -407,32 +407,53 @@ function initWaveSurferEmbed(audioBlobUrl) {
   if (!container || !window.WaveSurfer) return;
   // Create a simple gradient for waveform
   const canvas = document.createElement('canvas');
-  canvas.width = 32; canvas.height = 48;
-  const ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-  gradient.addColorStop(0, '#656666');
-  gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-  gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-  gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-  gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-  gradient.addColorStop(1, '#B1B1B1');
-  const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-  progressGradient.addColorStop(0, '#EE772F');
-  progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-  progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-  progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-  progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-  progressGradient.addColorStop(1, '#F6B094');
+  canvas.width = 32; canvas.height = 96;
+
+  // Removed Gradient
+
+  // const ctx = canvas.getContext('2d');
+  // const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+  // gradient.addColorStop(0, '#656666');
+  // gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
+  // gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+  // gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+  // gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
+  // gradient.addColorStop(1, '#B1B1B1');
+
+  // Progress gradient
+  // const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+  // progressGradient.addColorStop(0, '#EE772F');
+  // progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
+  // progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+  // progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+  // progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
+  // progressGradient.addColorStop(1, '#F6B094');
+
   // Init WaveSurfer
   const wavesurfer = window.WaveSurfer.create({
     container: container,
-    waveColor: gradient,
-    progressColor: progressGradient,
-    height: 48,
-    barWidth: 2,
-    responsive: true,
-    cursorColor: '#3b82f6',
     backend: 'MediaElement',
+    // layout
+    height: 96,
+    normalize: true,
+    responsive: true,
+    fillParent: true,
+    autoCenter: true,
+    scrollParent: false,
+    dragToSeek: true,
+
+    // cursor
+    cursorColor: 'rgb(255, 0, 0, 0.6)',
+    cursorWidth: 3,
+
+    // waveform
+    waveColor: 'rgb(147, 196, 253)',
+    progressColor: 'rgb(37, 100, 235)',
+    barGap: 2,
+    barHeight: 1,
+    barWidth: 3,
+    barRadius: 6,
+    barAlign: 'bottom',
   });
   wavesurfer.load(audioBlobUrl);
   // Store instance for play control
@@ -464,7 +485,7 @@ function updateMetaTags(post, audioBlobUrl, artworkUrl) {
   const description = `Listen to ${title} by ${artist} on SoundSky`;
   const currentUrl = window.location.href;
   const embedUrl = currentUrl;
-  
+
   // Update Open Graph meta tags
   updateMetaTag('og:title', fullTitle);
   updateMetaTag('og:description', description);
@@ -477,7 +498,7 @@ function updateMetaTags(post, audioBlobUrl, artworkUrl) {
     updateMetaTag('og:audio', audioBlobUrl);
     updateMetaTag('og:audio:type', 'audio/mpeg');
   }
-  
+
   // Update Twitter Card meta tags
   updateMetaTag('twitter:card', 'player');
   updateMetaTag('twitter:title', fullTitle);
@@ -488,11 +509,11 @@ function updateMetaTags(post, audioBlobUrl, artworkUrl) {
   updateMetaTag('twitter:player', embedUrl);
   updateMetaTag('twitter:player:width', '420');
   updateMetaTag('twitter:player:height', '240');
-  
+
   // Update oEmbed discovery link
   const oembedUrl = `${window.location.origin}/oembed?url=${encodeURIComponent(currentUrl)}`;
   updateOEmbedLinkTag(oembedUrl);
-  
+
   // Generate and add an oEmbed response to the current page for discovery
   generateOEmbedResponse(currentUrl, fullTitle, description, artworkUrl, 420, 240);
 }
@@ -539,7 +560,7 @@ function generateOEmbedResponse(url, title, description, thumbnailUrl, width, he
     width: width,
     height: height
   };
-  
+
   // Since we don't have a backend, we'll make this available for the oembed.html page
   window.oembedResponse = oembedResponse;
   console.log('oEmbed response:', oembedResponse);
