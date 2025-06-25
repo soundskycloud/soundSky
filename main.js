@@ -215,14 +215,14 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
     // Look up the user's PDS/serviceEndpoint using getProfile
     let baseUrl = 'https://bsky.social';
     try {
-          const plcResponse = await fetch(`https://plc.directory/${userDid}`);
-          if (!plcResponse.ok) throw new Error(`Failed to resolve DID: ${plcResponse.status}`);
-          const plcData = await plcResponse.json();
-          // The PDS URL is in the 'service' field of the DID document
-          const pdsEndpoint = plcData.service.find(s => s.id === '#atproto_pds')?.serviceEndpoint;
-          if (!pdsEndpoint) throw new Error("Could not find PDS endpoint in DID document");
-          console.log(`PDS: ${pdsEndpoint}`);
-          baseUrl = pdsEndpoint;
+        const plcResponse = await fetch(`https://plc.directory/${userDid}`);
+        if (!plcResponse.ok) throw new Error(`Failed to resolve DID: ${plcResponse.status}`);
+        const plcData = await plcResponse.json();
+        // The PDS URL is in the 'service' field of the DID document
+        const pdsEndpoint = plcData.service.find(s => s.id === '#atproto_pds')?.serviceEndpoint;
+        if (!pdsEndpoint) throw new Error("Could not find PDS endpoint in DID document");
+        console.log(`PDS: ${pdsEndpoint}`);
+        baseUrl = pdsEndpoint;
     } catch (e) {
         // fallback to default
     }
@@ -237,7 +237,7 @@ async function fetchAudioBlobUrl(userDid, blobRef) {
         // fallback to CORS proxy
         const corsProxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(blobUrl);
         try {
-        resp = await fetch(corsProxyUrl);
+            resp = await fetch(corsProxyUrl);
         } catch (e) {
             resp = { ok: false };
         }
@@ -289,7 +289,7 @@ async function sha256Hex(str) {
 function attachPostTitleLinkHandlers() {
     document.querySelectorAll('.post-title-link').forEach(title => {
         if (!title._soundskyHandlerAttached) {
-            title.addEventListener('click', function(e) {
+            title.addEventListener('click', function (e) {
                 e.preventDefault();
                 // Cancel feed loading/appending
                 _soundskyFeedCancelled = true;
@@ -309,7 +309,7 @@ function attachPostTitleLinkHandlers() {
     // --- NEW: Attach click handler to .comment-post-btn to open single-post view ---
     document.querySelectorAll('.comment-post-btn').forEach(btn => {
         if (!btn._soundskyHandlerAttached) {
-            btn.addEventListener('click', function(e) {
+            btn.addEventListener('click', function (e) {
                 e.preventDefault();
                 const postCard = btn.closest('.post-card');
                 const postUri = postCard?.getAttribute('data-post-uri');
@@ -391,7 +391,7 @@ async function appendAudioPostCard(audioPost, feedGen) {
         const embed = post.record && post.record.embed;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-    if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             audioHtml = '';
         } else {
             // No valid audio, skip this post
@@ -475,12 +475,12 @@ async function fetchSoundskyFeed({ append = false, mode = 'home', q = false } = 
                 feed = await agent.api.app.bsky.feed.searchPosts(params);
             } else if (mode == 'search' && q != false) {
                 // alias search on image id
-                const params = { q: '#soundskyimg='+q, limit: 50 };
+                const params = { q: '#soundskyimg=' + q, limit: 50 };
                 if (localCursor) params.cursor = localCursor;
                 feed = await agent.api.app.bsky.feed.searchPosts(params);
             } else if (mode == 'link' && q != false) {
                 // alias search on image id
-                const params = { q: '#soundskyid='+q, limit: 50 };
+                const params = { q: '#soundskyid=' + q, limit: 50 };
                 if (localCursor) params.cursor = localCursor;
                 feed = await agent.api.app.bsky.feed.searchPosts(params);
             } else {
@@ -661,23 +661,23 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
             // No need to set audioHtml here
         } else {
             // Legacy embed logic
-        const embed = post.record && post.record.embed;
-        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
-            try {
-                audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
-            } catch (e) {
-                audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
-            }
-            if (audioBlobUrl && audioWaveformId) {
-                audioHtml = `
+            const embed = post.record && post.record.embed;
+            if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+            else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+            if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+                const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+                try {
+                    audioBlobUrl = await fetchAudioBlobUrl(user.did, blobRef);
+                } catch (e) {
+                    audioHtml = `<div class='text-red-500 text-xs mt-2'>Audio unavailableor Session Expired.</div>`;
+                }
+                if (audioBlobUrl && audioWaveformId) {
+                    audioHtml = `
                           <div class=\"flex items-center gap-2 mt-3 audioplayerbox\">\n                        <!--IMG-FEED-->\n                        <button class=\"wavesurfer-play-btn soundsky-play-btn\" data-waveid=\"${audioWaveformId}\">\n                          <svg class=\"wavesurfer-play-icon\" width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\">\n                            <circle cx=\"14\" cy=\"14\" r=\"14\" fill=\"#3b82f6\"/>\n                            <polygon class=\"play-shape\" points=\"11,9 21,14 11,19\" fill=\"white\"/>\n                          </svg>\n                        </button>\n                        <div id=\"${audioWaveformId}\" class=\"wavesurfer waveform flex-1 h-12 relative\">\n                          <div class=\"wavesurfer-time\">0:00</div>\n                          <div class=\"wavesurfer-duration\">0:00</div>\n                          <div class=\"wavesurfer-hover\"></div>\n                        </div>\n                      </div>\n                    `;
-                wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
+                    wavesurferInitQueue.push({ audioWaveformId, audioBlobUrl });
+                }
             }
         }
-    }
         return renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, soundskyRkey, playCount });
     }));
     html = postCards.join('');
@@ -1001,7 +1001,7 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord && lexiconRecord.metadata) {
         displayTitle = lexiconRecord.metadata.title || '';
         displayArtist = lexiconRecord.metadata.artist || '';
-        } else {
+    } else {
         displayTitle = (post.record?.text || '').split('\n')[0].slice(0, 100);
         displayArtist = user.displayName || user.handle || '';
     }
@@ -1030,7 +1030,7 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
         const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
         setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0);
-                } else {
+    } else {
         // Legacy embed logic
         let fileEmbed = null;
         const embed = post.record && post.record.embed;
@@ -1045,7 +1045,7 @@ async function renderSinglePostView(postUri) {
     // Fetch the thread for comments (if not already available)
     try {
         await renderSinglePostComments(post);
-                    } catch (err) {
+    } catch (err) {
         const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
         if (postCardContent) {
             postCardContent.insertAdjacentHTML('beforeend', '<div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4"><div class="text-red-400 text-xs">Failed to load comments.</div></div>');
@@ -1086,11 +1086,10 @@ async function renderSinglePostComments(post) {
           </form>
         </div>
         <div id=\"comments-${post.cid}\" class=\"space-y-2\">
-          ${
-            replies.length === 0
-              ? '<div class=\\"text-gray-400 text-xs\\">No comments yet.</div>'
-              : renderThreadedComments(replies)
-          }
+          ${replies.length === 0
+            ? '<div class=\\"text-gray-400 text-xs\\">No comments yet.</div>'
+            : renderThreadedComments(replies)
+        }
         </div>
       </div>
     `;
@@ -1103,7 +1102,7 @@ async function renderSinglePostComments(post) {
     setTimeout(() => {
         const commentForm = document.getElementById(`comment-form-${post.cid}`);
         if (commentForm) {
-            commentForm.addEventListener('submit', async function(e) {
+            commentForm.addEventListener('submit', async function (e) {
                 console.debug('[SinglePost] Comment form submit handler fired');
                 e.preventDefault();
                 const input = commentForm.querySelector('input[type="text"]');
@@ -1129,7 +1128,7 @@ async function renderSinglePostComments(post) {
                     commentForm.querySelector('button[type="submit"]').disabled = false;
                 }
             });
-    } else {
+        } else {
             console.debug('[SinglePost] Comment form not found for direct handler');
         }
     }, 0);
@@ -1172,7 +1171,7 @@ async function renderArtistPage(did) {
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
     // Stop and destroy any existing WaveSurfer instances
     if (window.soundskyWavesurfers) {
-        Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.destroy(); } catch {} });
+        Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.destroy(); } catch { } });
         window.soundskyWavesurfers = {};
     }
     feedContainer.innerHTML = `<div id='artist-page-content'></div>`;
@@ -1258,12 +1257,12 @@ async function renderArtistPage(did) {
                 lazyLoaders.push(() => setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0));
             } else {
                 // Legacy embed logic
-            let fileEmbed = null;
-            const embed = post.record && post.record.embed;
-            if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-            else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-            if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-                const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+                let fileEmbed = null;
+                const embed = post.record && post.record.embed;
+                if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+                else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+                if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+                    const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
                     lazyLoaders.push(() => setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0));
                 }
             }
@@ -1278,7 +1277,7 @@ async function renderArtistPage(did) {
 // --- 4. Add event delegation for username clicks ---
 function addArtistLinkHandlers() {
     // Delegated event handler for .artist-link
-    feedContainer.addEventListener('click', function(e) {
+    feedContainer.addEventListener('click', function (e) {
         const target = e.target.closest('.artist-link');
         if (target && target.dataset.did) {
             // Save last view for back button
@@ -1295,13 +1294,13 @@ function addArtistLinkHandlers() {
 addArtistLinkHandlers();
 // Also call after rendering single post (wrap origRenderFeed and renderSinglePostView)
 const origRenderFeed = renderFeed;
-renderFeed = async function(...args) {
+renderFeed = async function (...args) {
     await origRenderFeed.apply(this, args);
     addSinglePostClickHandlers();
     addArtistLinkHandlers();
 };
 const origRenderSinglePostView = renderSinglePostView;
-renderSinglePostView = async function(...args) {
+renderSinglePostView = async function (...args) {
     await origRenderSinglePostView.apply(this, args);
     addArtistLinkHandlers();
 };
@@ -1419,18 +1418,18 @@ async function renderPostCard({ post, user, audioHtml, options = {}, lexiconReco
         displayTitle = displayText.split('\n')[0].slice(0, 100);
         displayArtist = user.displayName || user.handle || 'Unknown';
         // Legacy artwork logic
-    let embed = post.record && post.record.embed;
-    let images = [];
-    if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
-        images = embed.media.images;
-    } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
-        images = embed.images;
-    }
-    if (images.length > 0) {
-        const img = images[0];
-        let imgUrl = '';
-        if (img.image && img.image.ref) {
-            const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+        let embed = post.record && post.record.embed;
+        let images = [];
+        if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+            images = embed.media.images;
+        } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+            images = embed.images;
+        }
+        if (images.length > 0) {
+            const img = images[0];
+            let imgUrl = '';
+            if (img.image && img.image.ref) {
+                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
                 imgUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(blobRef)}`;
             }
             displayArtworkUrl = imgUrl;
@@ -1601,7 +1600,7 @@ async function getLexiconPlayCount({ post, lexiconRecord, soundskyRkey }) {
 
 // --- Utility: Initialize WaveSurfer instance for a given waveform ID and blob URL ---
 function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
-                const container = document.getElementById(audioWaveformId);
+    const container = document.getElementById(audioWaveformId);
     if (!container || !audioBlobUrl) return;
     // Fallback for huge files: use a hidden <audio> element instead of WaveSurfer
     if (blobSize && blobSize > 10 * 1024 * 1024) {
@@ -1648,30 +1647,33 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
     if (container && window.WaveSurfer && audioBlobUrl) {
         // Destroy any existing instance for this id before creating a new one
         if (window.soundskyWavesurfers[audioWaveformId]) {
-            try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch {}
+            try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch { }
             delete window.soundskyWavesurfers[audioWaveformId];
         }
         try {
-        // Create canvas for gradients
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 32; canvas.height = 48;
-                    const ctx = canvas.getContext('2d');
-        // SoundCloud-style waveform gradient
-                    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-                    gradient.addColorStop(0, '#656666');
-                    gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-                    gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-                    gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-                    gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-                    gradient.addColorStop(1, '#B1B1B1');
-        // Progress gradient
-                    const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-                    progressGradient.addColorStop(0, '#EE772F');
-                    progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-                    progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-                    progressGradient.addColorStop(1, '#F6B094');
+            // Create canvas for gradients
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 48;
+            const ctx = canvas.getContext('2d');
+
+            // Removed Gradient
+
+            // const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+            // gradient.addColorStop(0, '#656666');
+            // gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
+            // gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+            // gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+            // gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
+            // gradient.addColorStop(1, '#B1B1B1');
+
+            // Progress gradient
+            // const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+            // progressGradient.addColorStop(0, '#EE772F');
+            // progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
+            // progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+            // progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+            // progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
+            // progressGradient.addColorStop(1, '#F6B094');
             // Ensure duration and time overlays exist
             let timeEl = container.querySelector('.wavesurfer-time');
             let durationEl = container.querySelector('.wavesurfer-duration');
@@ -1687,93 +1689,109 @@ function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
                 durationEl.textContent = '0:00';
                 container.appendChild(durationEl);
             }
-                    const wavesurfer = window.WaveSurfer.create({
-                        container: `#${audioWaveformId}`,
-                        waveColor: gradient,
-                        progressColor: progressGradient,
-                        height: 48,
-                        barWidth: 2,
-                        responsive: true,
-                        cursorColor: '#3b82f6',
-                        backend: 'MediaElement',
-                    });
-                    wavesurfer.load(audioBlobUrl);
-                    window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
-                    const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
-                    let hasCountedPlay = false;
-                    if (playBtn) {
-                        const svg = playBtn.querySelector('.wavesurfer-play-icon');
-                        playBtn.onclick = () => {
-                            Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                wavesurfer.pause();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                                if (!hasCountedPlay && playBtn._soundskyPost && playBtn._soundskyLexiconRecord) {
-                                    incrementLexiconPlayCount({ uri: playBtn._soundskyPost.uri, value: playBtn._soundskyLexiconRecord });
-                                    hasCountedPlay = true;
-                                }
-                            }
-                        };
-                        wavesurfer.on('finish', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                        });
-                        wavesurfer.on('pause', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
-                        });
-                        wavesurfer.on('play', () => {
-                            svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                        });
-                        wavesurfer.on('click', () => {
-                          Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
-                                if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
-                                    ws.pause();
-                                }
-                            });
-                            if (wavesurfer.isPlaying()) {
-                                // wavesurfer.pause();
-                            } else {
-                                wavesurfer.play();
-                                svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
-                            }
+            const wavesurfer = window.WaveSurfer.create({
+                // fundamentals
+                container: `#${audioWaveformId}`,
+                backend: 'MediaElement',
+                // layout
+                height: 96,
+                normalize: false,
+                responsive: true,
+                fillParent: true,
+                autoCenter: true,
+                scrollParent: false,
+                dragToSeek: true,
+
+                // cursor
+                cursorColor: 'rgb(255, 0, 0, 0.6)',
+                cursorWidth: 3,
+
+                // waveform
+                waveColor: 'rgb(147, 196, 253)',
+                progressColor: 'rgb(37, 100, 235)',
+                barGap: 2,
+                barHeight: 1,
+                barWidth: 3,
+                barRadius: 6,
+                barAlign: 'bottom',
             });
-                    }
-                    const formatTime = (seconds) => {
-                        const minutes = Math.floor(seconds / 60);
-                        const secondsRemainder = Math.round(seconds) % 60;
-                        const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-                        return `${minutes}:${paddedSeconds}`;
-                    };
-                    wavesurfer.on('decode', (duration) => {
-                        if (durationEl) durationEl.textContent = formatTime(duration);
+            wavesurfer.load(audioBlobUrl);
+            window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
+            const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
+            let hasCountedPlay = false;
+            if (playBtn) {
+                const svg = playBtn.querySelector('.wavesurfer-play-icon');
+                playBtn.onclick = () => {
+                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                            ws.pause();
+                        }
                     });
+                    if (wavesurfer.isPlaying()) {
+                        wavesurfer.pause();
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                    } else {
+                        wavesurfer.play();
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                        if (!hasCountedPlay && playBtn._soundskyPost && playBtn._soundskyLexiconRecord) {
+                            incrementLexiconPlayCount({ uri: playBtn._soundskyPost.uri, value: playBtn._soundskyLexiconRecord });
+                            hasCountedPlay = true;
+                        }
+                    }
+                };
+                wavesurfer.on('finish', () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                });
+                wavesurfer.on('pause', () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><polygon class="play-shape" points="11,9 21,14 11,19" fill="white"/>`;
+                });
+                wavesurfer.on('play', () => {
+                    svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                });
+                wavesurfer.on('click', () => {
+                    Object.entries(window.soundskyWavesurfers).forEach(([id, ws]) => {
+                        if (id !== audioWaveformId && ws && ws.isPlaying && ws.isPlaying()) {
+                            ws.pause();
+                        }
+                    });
+                    if (wavesurfer.isPlaying()) {
+                        // wavesurfer.pause();
+                    } else {
+                        wavesurfer.play();
+                        svg.innerHTML = `<circle cx="14" cy="14" r="14" fill="#3b82f6"/><rect x="12" y="10" width="2.5" height="8" rx="1" fill="white"/><rect x="16" y="10" width="2.5" height="8" rx="1" fill="white"/>`;
+                    }
+                });
+            }
+            const formatTime = (seconds) => {
+                const minutes = Math.floor(seconds / 60);
+                const secondsRemainder = Math.round(seconds) % 60;
+                const paddedSeconds = `0${secondsRemainder}`.slice(-2);
+                return `${minutes}:${paddedSeconds}`;
+            };
+            wavesurfer.on('decode', (duration) => {
+                if (durationEl) durationEl.textContent = formatTime(duration);
+            });
             wavesurfer.on('ready', () => {
                 if (durationEl && wavesurfer.getDuration) durationEl.textContent = formatTime(wavesurfer.getDuration());
-                    });
-                    wavesurfer.on('timeupdate', (currentTime) => {
-                        if (timeEl) timeEl.textContent = formatTime(currentTime);
-                    });
+            });
+            wavesurfer.on('timeupdate', (currentTime) => {
+                if (timeEl) timeEl.textContent = formatTime(currentTime);
+            });
             let hoverEl = container.querySelector('.wavesurfer-hover');
             if (!hoverEl) {
                 hoverEl = document.createElement('div');
                 hoverEl.className = 'wavesurfer-hover';
                 container.appendChild(hoverEl);
             }
-                    container.addEventListener('pointermove', (e) => {
-                        if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
-                    });
-                    container.addEventListener('pointerenter', () => {
-                        if (hoverEl) hoverEl.style.opacity = 1;
-                    });
-                    container.addEventListener('pointerleave', () => {
-                        if (hoverEl) hoverEl.style.opacity = 0;
-                    });
+            container.addEventListener('pointermove', (e) => {
+                if (hoverEl) hoverEl.style.width = `${e.offsetX}px`;
+            });
+            container.addEventListener('pointerenter', () => {
+                if (hoverEl) hoverEl.style.opacity = 1;
+            });
+            container.addEventListener('pointerleave', () => {
+                if (hoverEl) hoverEl.style.opacity = 0;
+            });
         } catch (err) {
             console.error('WaveSurfer initWaveSurfer error:', err);
             if (container) {
@@ -1803,7 +1821,7 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
         // Show the message before play
         if (!container.querySelector('.soundsky-largefile-msg')) {
             const msg = document.createElement('div');
-            msg.className = 'text-xs text-gray-400 mt-2 soundsky-largefile-msg';
+            msg.className = 'mt-2 text-xs text-gray-400 soundsky-largefile-msg';
             msg.textContent = 'Waveform unavailable for large files';
             // container.appendChild(msg);
         }
@@ -1932,7 +1950,7 @@ function setupLazyWaveSurfer(audioWaveformId, userDid, blobRef, blobSize) {
 }
 
 // --- Add event delegation for delete button (fixes icon click issues) ---
-feedContainer.addEventListener('click', async function(e) {
+feedContainer.addEventListener('click', async function (e) {
     // Delete button
     const btn = e.target.closest('.delete-post-btn');
     if (btn && btn.getAttribute('data-uri')) {
@@ -2152,7 +2170,7 @@ feedContainer.addEventListener('click', async function(e) {
 // Add search bar functionality
 const searchInput = document.getElementById('top-search-input');
 if (searchInput) {
-    searchInput.addEventListener('keydown', async function(e) {
+    searchInput.addEventListener('keydown', async function (e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             const query = searchInput.value.trim();
@@ -2178,7 +2196,7 @@ if (searchInput) {
 }
 
 // Update follow button event delegation for follow/unfollow toggle
-feedContainer.addEventListener('click', async function(e) {
+feedContainer.addEventListener('click', async function (e) {
     // Follow/unfollow logic
     const followBtn = e.target.closest('.follow-user-btn');
     if (followBtn && followBtn.getAttribute('data-did')) {
@@ -2216,7 +2234,7 @@ feedContainer.addEventListener('click', async function(e) {
 });
 
 // Add event delegation for comment form submission (restores comment functionality)
-feedContainer.addEventListener('submit', async function(e) {
+feedContainer.addEventListener('submit', async function (e) {
     const form = e.target.closest('form[id^="comment-form-"]');
     if (!form) return;
     e.preventDefault();
@@ -2261,7 +2279,7 @@ feedContainer.addEventListener('submit', async function(e) {
 });
 
 // Add delegated event handler for .delete-comment-btn
-feedContainer.addEventListener('click', async function(e) {
+feedContainer.addEventListener('click', async function (e) {
     const btn = e.target.closest('.delete-comment-btn');
     if (btn && btn.getAttribute('data-uri')) {
         let uri = btn.getAttribute('data-uri');
@@ -2288,7 +2306,7 @@ feedContainer.addEventListener('click', async function(e) {
     }
 });
 
-  
+
 /**
  * Increment the counter by 1
  * @param {string} namespace - Your domain or logical grouping
@@ -2296,7 +2314,7 @@ feedContainer.addEventListener('click', async function(e) {
  * @returns {Promise<number>} - Resolves to the updated count after increment
  */
 async function incrementCount(namespace, key) {
-    key = key.replace('waveform-','');
+    key = key.replace('waveform-', '');
     const url = `https://counterapi.com/api/${namespace}/play/${key}?time=${Date.now()}`;
     const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to increment count');
@@ -2379,7 +2397,7 @@ if (volumeBtn && volumeSlider) {
 function destroyAllWaveSurfers() {
     if (window.soundskyWavesurfers) {
         Object.values(window.soundskyWavesurfers).forEach(ws => {
-            try { ws.destroy(); } catch {}
+            try { ws.destroy(); } catch { }
         });
         window.soundskyWavesurfers = {};
     }
@@ -2418,7 +2436,7 @@ function addArtistPagePostTitleHandlers() {
     setTimeout(() => {
         document.querySelectorAll('#artist-page-content .post-title-link').forEach(title => {
             if (!title._soundskyHandlerAttached) {
-                title.addEventListener('click', function(e) {
+                title.addEventListener('click', function (e) {
                     e.preventDefault();
                     const postUri = title.getAttribute('data-post-uri');
                     if (postUri) {
@@ -2433,7 +2451,7 @@ function addArtistPagePostTitleHandlers() {
 }
 // After rendering artist page, call the handler
 const origRenderArtistPage = renderArtistPage;
-renderArtistPage = async function(...args) {
+renderArtistPage = async function (...args) {
     await origRenderArtistPage.apply(this, args);
     addArtistPagePostTitleHandlers();
 };
@@ -2589,13 +2607,13 @@ async function renderLikedPostsAlbumView() {
     feedContainer.innerHTML = html;
     // Play logic for covers
     document.querySelectorAll('.album-cover-btn').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
+        btn.addEventListener('click', async function (e) {
             e.preventDefault();
             const did = btn.getAttribute('data-did');
             const blobRef = btn.getAttribute('data-blob');
             if (!did || !blobRef) return;
             // Pause any existing audio and reset icons
-            document.querySelectorAll('.album-cover-audio').forEach(aud => { try { aud.pause(); aud.remove(); } catch {} });
+            document.querySelectorAll('.album-cover-audio').forEach(aud => { try { aud.pause(); aud.remove(); } catch { } });
             document.querySelectorAll('.album-play-icon').forEach(icon => { icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); });
             // If already playing, just stop
             const overlayIcon = btn.querySelector('.album-play-icon');
@@ -2623,18 +2641,18 @@ async function renderLikedPostsAlbumView() {
             audio.onended = () => {
                 btn.classList.remove('playing');
                 if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); }
-                try { audio.remove(); } catch {}
+                try { audio.remove(); } catch { }
             };
             audio.onpause = () => {
                 btn.classList.remove('playing');
                 if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); }
-                try { audio.remove(); } catch {}
+                try { audio.remove(); } catch { }
             };
         });
     });
     // Title click: single post
     document.querySelectorAll('.album-title-link').forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
             const postUri = link.getAttribute('data-post-uri');
             if (postUri) {
@@ -2645,7 +2663,7 @@ async function renderLikedPostsAlbumView() {
     });
     // Artist click: artist page
     document.querySelectorAll('.album-artist-link').forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
             const did = link.getAttribute('data-did');
             if (did) {
@@ -2719,7 +2737,7 @@ function renderNotificationDropdown(errorMsg) {
             postUri = n.record.subject.uri;
         }
         // Compose reason text
-        if (['like','repost','reply','mention'].includes(reason)) {
+        if (['like', 'repost', 'reply', 'mention'].includes(reason)) {
             reasonText = songTitle ? `${reason === 'like' ? 'liked' : reason === 'repost' ? 'reposted' : reason === 'reply' ? 'replied to' : 'mentioned you in'} \"${songTitle}\"` : `${reason === 'like' ? 'liked' : reason === 'repost' ? 'reposted' : reason === 'reply' ? 'replied to' : 'mentioned you in'} your post`;
         } else if (reason === 'follow') {
             reasonText = 'followed you';
@@ -2751,7 +2769,7 @@ function renderNotificationDropdown(errorMsg) {
     // Attach click handler robustly
     setTimeout(() => {
         document.querySelectorAll('.notification-row').forEach(row => {
-            row.onclick = async function(e) {
+            row.onclick = async function (e) {
                 const postUri = row.getAttribute('data-post-uri');
                 if (postUri) {
                     // Always resolve to root/top post
@@ -2782,7 +2800,7 @@ function setupNotificationDropdown() {
     const dropdown = document.getElementById('notification-dropdown');
     if (!btn || !dropdown) return;
     let open = false;
-    btn.onclick = async function(e) {
+    btn.onclick = async function (e) {
         e.stopPropagation();
         open = !open;
         if (open) {
@@ -2795,7 +2813,7 @@ function setupNotificationDropdown() {
         }
     };
     // Hide dropdown on outside click
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (!dropdown.classList.contains('hidden')) {
             if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.classList.add('hidden');
@@ -2810,7 +2828,7 @@ async function markNotificationsSeen() {
         await agent.api.app.bsky.notification.updateSeen({ seenAt: new Date().toISOString() });
         hasNewNotifications = false;
         updateNotificationBell();
-    } catch (e) {}
+    } catch (e) { }
 }
 
 // Fetch notifications on navigation (after each link click)
@@ -2826,7 +2844,7 @@ function setupNotificationNavRefresh() {
         }
     });
     // Also refresh on artist/title link clicks in album grid
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (e.target && (e.target.classList.contains('album-title-link') || e.target.classList.contains('album-artist-link'))) {
             setTimeout(fetchNotifications, 500);
         }
