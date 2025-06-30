@@ -67,7 +67,7 @@ body {
 .embed-waveform {
   flex: 1 1 0%;
   min-width: 120px;
-  height: 48px;
+  height: 96px;
   width: 100%;
   box-sizing: border-box;
   position: relative;

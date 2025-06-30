@@ -407,32 +407,47 @@ function initWaveSurferEmbed(audioBlobUrl) {
   if (!container || !window.WaveSurfer) return;
   // Create a simple gradient for waveform
   const canvas = document.createElement('canvas');
-  canvas.width = 32; canvas.height = 48;
+  canvas.width = 32; canvas.height = 96;
   const ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-  gradient.addColorStop(0, '#656666');
-  gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
-  gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-  gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-  gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
-  gradient.addColorStop(1, '#B1B1B1');
-  const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
-  progressGradient.addColorStop(0, '#EE772F');
-  progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
-  progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
-  progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
-  progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
-  progressGradient.addColorStop(1, '#F6B094');
+  // const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+  // gradient.addColorStop(0, '#656666');
+  // gradient.addColorStop((canvas.height * 0.7) / canvas.height, '#656666');
+  // gradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+  // gradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+  // gradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#B1B1B1');
+  // gradient.addColorStop(1, '#B1B1B1');
+  // const progressGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 1.35);
+  // progressGradient.addColorStop(0, '#EE772F');
+  // progressGradient.addColorStop((canvas.height * 0.7) / canvas.height, '#EB4926');
+  // progressGradient.addColorStop((canvas.height * 0.7 + 1) / canvas.height, '#ffffff');
+  // progressGradient.addColorStop((canvas.height * 0.7 + 2) / canvas.height, '#ffffff');
+  // progressGradient.addColorStop((canvas.height * 0.7 + 3) / canvas.height, '#F6B094');
+  // progressGradient.addColorStop(1, '#F6B094');
   // Init WaveSurfer
   const wavesurfer = window.WaveSurfer.create({
     container: container,
-    waveColor: gradient,
-    progressColor: progressGradient,
-    height: 48,
-    barWidth: 2,
-    responsive: true,
-    cursorColor: '#3b82f6',
     backend: 'MediaElement',
+    // layout
+    height: 96,
+    normalize: true,
+    responsive: true,
+    fillParent: true,
+    autoCenter: true,
+    scrollParent: false,
+    dragToSeek: true,
+
+    // cursor
+    cursorColor: 'rgb(255, 0, 0, 0.6)',
+    cursorWidth: 3,
+
+    // waveform
+    waveColor: 'rgb(147, 196, 253)',
+    progressColor: 'rgb(37, 100, 235)',
+    barGap: 2,
+    barHeight: 1,
+    barWidth: 3,
+    barRadius: 6,
+    barAlign: 'bottom',
   });
   wavesurfer.load(audioBlobUrl);
   // Store instance for play control
