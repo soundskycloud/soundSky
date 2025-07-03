@@ -24,18 +24,17 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
     }
     // --- Audio ---
     let audioCid = lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref && lexiconRecord.audio.ref.$link ? lexiconRecord.audio.ref.$link : '';
-    // --- Waveform Placeholder ---
-    let waveformId = options.lazyWaveformId || `waveform-${post.cid || post.rkey}`;
     // --- Play Button ---
     let playBtnHtml = '';
     if (audioCid) {
-        playBtnHtml = `<button class="soundsky-play-btn waveform-play-btn absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 focus:outline-none transition" data-did="${user.did}" data-blob="${audioCid}" data-waveform-id="${waveformId}" title="Play">
+        playBtnHtml = `<button class="soundsky-play-btn waveform-play-btn" data-did="${user.did}" data-blob="${audioCid}" title="Play">
             <i class="fas fa-play"></i>
         </button>`;
     }
-    let waveformHtml = `<div id="${waveformId}" class="wavesurfer waveform soundsky-waveform-placeholder relative">
+    // --- Waveform Placeholder ---
+    let waveformId = options.lazyWaveformId || `waveform-${post.cid || post.rkey}`;
+    let waveformHtml = `<div id="${waveformId}" class="wavesurfer waveform soundsky-waveform-placeholder">
         <div class="soundsky-placeholder-content"><i class="fas fa-wave-square"></i> Waveform will appear here</div>
-        ${playBtnHtml}
     </div>`;
     // --- Play Count (for lexicon posts) ---
     let playCountHtml = '';

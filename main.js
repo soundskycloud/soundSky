@@ -283,8 +283,8 @@ async function appendAudioPostCard(item, feedGen) {
     const did = item.did;
     if (!record || !did) {
         console.warn('[appendAudioPostCard] Skipping item with missing record or did', item);
-        return;
-    }
+            return;
+        }
     // Build user object
     const user = {
         did,
@@ -314,7 +314,7 @@ async function appendAudioPostCard(item, feedGen) {
     let coverUrl = '';
     if (artworkCid) {
         coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(artworkCid)}`;
-    } else {
+            } else {
         coverUrl = '/favicon.ico';
     }
     console.debug('[appendAudioPostCard] UFOs-API mapping:', {
@@ -338,10 +338,10 @@ async function appendAudioPostCard(item, feedGen) {
             playCount,
             coverUrl // pass to post card for fallback
         });
-    } catch (err) {
+        } catch (err) {
         console.error('[appendAudioPostCard] Failed to render post card:', err, { record, user });
-        return;
-    }
+            return;
+        }
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
     const cardEl = tempDiv.firstElementChild;
@@ -350,17 +350,17 @@ async function appendAudioPostCard(item, feedGen) {
         return;
     }
     feedContainer.appendChild(cardEl);
-    const playBtn = cardEl.querySelector('.soundsky-play-btn');
-    if (playBtn) {
+        const playBtn = cardEl.querySelector('.soundsky-play-btn');
+        if (playBtn) {
         playBtn._soundskyPost = record;
         playBtn._soundskyLexiconRecord = record;
         playBtn.setAttribute('data-did', did);
         playBtn.setAttribute('data-blob', audioCid);
         playBtn.setAttribute('data-waveform-id', audioWaveformId);
-    }
-    const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
-    if (playCountEl) {
-        playCountEl.textContent = playCount;
+        }
+        const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
+        if (playCountEl) {
+            playCountEl.textContent = playCount;
     }
     if (!_soundskyFirstCardAppended) {
         feedLoading.classList.add('hidden');
@@ -402,8 +402,8 @@ async function fetchSoundskyFeed({ append = false, mode = 'discover', q = false 
                 } catch (err) {
                     console.error('[fetchSoundskyFeed] Failed to append audio post card:', err, { item });
                 }
-            }
-        } else {
+                }
+            } else {
             feedContainer.innerHTML = `<div class="text-center text-gray-500 py-8">No music found.</div>`;
         }
         // TODO: Handle pagination if the API supports it
@@ -1132,7 +1132,7 @@ async function renderLikedPostsAlbumView() {
             </button>`;
         } else {
             if (record.audio) console.error('[renderLikedPostsAlbumView] Missing audioCid (.ref.$link) for record', { record, item });
-            playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`;
+                playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`;
         }
         // --- Play Count (for lexicon posts) ---
         let playCountHtml = '';
@@ -1327,8 +1327,8 @@ async function renderSinglePostView(postUri) {
             if (lexRes.success && lexRes.record) {
                 lexiconRecord = lexRes.record;
                 playCount = await getLexiconPlayCount({ post: postData });
-            }
-        } catch (err) {
+                        }
+                    } catch (err) {
             console.error('[renderSinglePostView] Failed to fetch lexicon record:', err, { post: postData, did, soundskyRkey });
             lexiconRecord = null;
         }
@@ -1352,7 +1352,7 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord && lexiconRecord.metadata) {
         displayTitle = lexiconRecord.metadata.title || '';
         displayArtist = lexiconRecord.metadata.artist || '';
-    } else {
+        } else {
         displayTitle = (record.text || '').split('\n')[0].slice(0, 100);
         displayArtist = postData.author.displayName || postData.author.handle || '';
     }
@@ -1553,34 +1553,6 @@ feedContainer.addEventListener('click', async function(e) {
                 return;
             }
             initWaveSurfer(waveformId, audioUrl);
-            // Visually update play button to pause
-            if (playBtn) {
-                playBtn.classList.add('playing');
-                const icon = playBtn.querySelector('i');
-                if (icon) { icon.classList.remove('fa-play'); icon.classList.add('fa-pause'); }
-            }
-            // Start playback immediately
-            setTimeout(() => {
-                const ws = window.soundskyWavesurfers[waveformId];
-                if (ws && !ws.isPlaying()) ws.play();
-                // Listen for pause/finish to update icon
-                if (ws) {
-                    ws.on('pause', () => {
-                        if (playBtn) {
-                            playBtn.classList.remove('playing');
-                            const icon = playBtn.querySelector('i');
-                            if (icon) { icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); }
-                        }
-                    });
-                    ws.on('finish', () => {
-                        if (playBtn) {
-                            playBtn.classList.remove('playing');
-                            const icon = playBtn.querySelector('i');
-                            if (icon) { icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); }
-                        }
-                    });
-                }
-            }, 100);
             // Increment play count using did and rkey
             incrementLexiconPlayCount({ did, rkey });
         } catch (err) {
