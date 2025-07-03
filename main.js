@@ -265,89 +265,79 @@ function attachPostTitleLinkHandlers() {
 // Helper: progressively append a single audio post card
 let _soundskyFirstCardAppended = false;
 // --- Patch appendAudioPostCard to enforce strict lazy loading ---
-async function appendAudioPostCard(audioPost, feedGen) {
-    console.debug('[appendAudioPostCard] called for', audioPost);
-    if (_soundskyFeedCancelled || feedGen !== _soundskyFeedGeneration) return;
-    const post = audioPost.post || audioPost;
-    // Robust user object construction
-    let user = post.author;
-    if (!user) {
-        user = {
-            did: post.did || post.repo || '',
-            handle: post.handle || '',
-            displayName: post.displayName || post.handle || '',
-            avatar: post.avatar || '/favicon.ico',
-        };
-    }
-    // Banlist check: skip if author is banned
-    if (user && user.handle) {
-        const handle = user.handle;
-        const hash = await sha256Hex(handle.trim().toLowerCase());
-        const banlist = await loadBanlist();
-        const isBanned = banlist.has(hash);
-        if (isBanned) return;
-    }
-    let audioHtml = '';
-    let audioWaveformId = `waveform-${post.cid}`;
-    let lexiconRecord = post.record || post;
-    let playCount;
-    try {
-        playCount = await getLexiconPlayCount({ post });
-    } catch (err) {
-        console.error('[appendAudioPostCard] Failed to get play count:', err, { post, user });
-        playCount = 0;
-    }
-    // Ensure lexicon record has audio
-    if (!lexiconRecord || !lexiconRecord.audio || !lexiconRecord.audio.ref) {
-        console.warn('[appendAudioPostCard] Skipping post: lexicon record missing audio', { post, user, lexiconRecord });
+async function appendAudioPostCard(item, feedGen) {
+    // UFOs-API: item is the wrapper, item.record is the actual SoundSky record
+    const record = item.record;
+    const did = item.did;
+    if (!record || !did) {
+        console.warn('[appendAudioPostCard] Skipping item with missing record or did', item);
         return;
     }
-    if (feedGen !== _soundskyFeedGeneration) return;
+    // Build user object
+    const user = {
+        did,
+        handle: '', // UFOs-API does not provide handle
+        displayName: record.metadata?.artist || '',
+        avatar: '/favicon.ico',
+    };
+    // Banlist check: skip if artist is banned
+    const handle = user.displayName.toLowerCase();
+    const hash = await sha256Hex(handle);
+    const banlist = await loadBanlist();
+    if (banlist.has(hash)) return;
+    let audioHtml = '';
+    let audioWaveformId = `waveform-${item.rkey}`;
+    let playCount = record.stats?.plays || 0;
+    // Ensure record has audio
+    if (!record.audio || !record.audio.ref || !record.audio.ref.$link) {
+        console.warn('[appendAudioPostCard] Skipping record: missing audio blob', { record, item });
+        return;
+    }
+    // Debug: Log the raw objects and extracted fields
+    const debugTitle = record.metadata?.title || record.text || '';
+    const debugArtist = record.metadata?.artist || '';
+    const audioCid = record.audio.ref.$link;
+    const artworkCid = record.artwork?.ref?.$link;
+    console.debug('[appendAudioPostCard] UFOs-API mapping:', {
+        item,
+        record,
+        did,
+        debugTitle,
+        debugArtist,
+        audioCid,
+        artworkCid,
+        metadata: record.metadata
+    });
     let cardHtml;
     try {
-        // Debug: Log the raw objects and extracted fields
-        let debugTitle = '';
-        let debugArtist = '';
-        if (lexiconRecord && lexiconRecord.metadata) {
-            debugTitle = lexiconRecord.metadata.title || '';
-            debugArtist = lexiconRecord.metadata.artist || '';
-        } else {
-            debugTitle = (post.record?.text || '').split('\n')[0].slice(0, 40) || 'Untitled';
-            debugArtist = user.displayName || user.handle || '';
-        }
-        console.debug('[appendAudioPostCard] Field mapping:', {
-            post,
+        cardHtml = await renderPostCard({
+            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: item.rkey, record, author: user },
             user,
-            lexiconRecord,
-            debugTitle,
-            debugArtist,
-            postKeys: Object.keys(post),
-            lexiconRecordKeys: lexiconRecord ? Object.keys(lexiconRecord) : null,
-            metadata: lexiconRecord ? lexiconRecord.metadata : null
+            audioHtml,
+            options: { lazyWaveformId: audioWaveformId },
+            lexiconRecord: record,
+            playCount
         });
-        cardHtml = await renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, playCount });
     } catch (err) {
-        console.error('[appendAudioPostCard] Failed to render post card:', err, { post, user, lexiconRecord });
+        console.error('[appendAudioPostCard] Failed to render post card:', err, { record, user });
         return;
     }
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
     const cardEl = tempDiv.firstElementChild;
     if (!cardEl) {
-        console.error('[appendAudioPostCard] cardEl is null after parsing cardHtml', { cardHtml, post, user });
+        console.error('[appendAudioPostCard] cardEl is null after parsing cardHtml', { cardHtml, record, user });
         return;
     }
     feedContainer.appendChild(cardEl);
-    if (lexiconRecord) {
-        const playBtn = cardEl.querySelector('.soundsky-play-btn');
-        if (playBtn) {
-            playBtn._soundskyPost = post;
-            playBtn._soundskyLexiconRecord = lexiconRecord;
-        }
-        const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
-        if (playCountEl) {
-            playCountEl.textContent = playCount;
-        }
+    const playBtn = cardEl.querySelector('.soundsky-play-btn');
+    if (playBtn) {
+        playBtn._soundskyPost = record;
+        playBtn._soundskyLexiconRecord = record;
+    }
+    const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
+    if (playCountEl) {
+        playCountEl.textContent = playCount;
     }
     if (!_soundskyFirstCardAppended) {
         feedLoading.classList.add('hidden');
@@ -355,17 +345,13 @@ async function appendAudioPostCard(audioPost, feedGen) {
     }
     attachPostTitleLinkHandlers();
     // Setup lazy loader for lexicon audio
-    if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-        const blobRef = extractBlobRef(lexiconRecord.audio.ref);
-        console.debug('[appendAudioPostCard] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
-        setTimeout(() => {
-            try {
-                setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size);
-            } catch (err) {
-                console.error('[appendAudioPostCard] Failed to setup lazy WaveSurfer:', err, { post, user, blobRef });
-            }
-        }, 0);
-    }
+    setTimeout(() => {
+        try {
+            setupLazyWaveSurfer(audioWaveformId, did, audioCid, record.audio.size);
+        } catch (err) {
+            console.error('[appendAudioPostCard] Failed to setup lazy WaveSurfer:', err, { record, user, audioCid });
+        }
+    }, 0);
 }
 
 // Update fetchSoundskyFeed to render each card as soon as it's ready
@@ -394,11 +380,11 @@ async function fetchSoundskyFeed({ append = false, mode = 'discover', q = false 
         if (!Array.isArray(records)) records = [];
         if (records.length > 0) {
             loadedAudioPosts = append ? loadedAudioPosts.concat(records) : records;
-            for (const audioPost of records) {
+            for (const item of records) {
                 try {
-                    await appendAudioPostCard(audioPost, thisFeedGen);
+                    await appendAudioPostCard(item, thisFeedGen);
                 } catch (err) {
-                    console.error('[fetchSoundskyFeed] Failed to append audio post card:', err, { audioPost });
+                    console.error('[fetchSoundskyFeed] Failed to append audio post card:', err, { item });
                 }
             }
         } else {
@@ -429,14 +415,25 @@ async function renderFeed(posts, { showLoadMore = false } = {}) {
     const wavesurferInitQueue = [];
     let html = '';
     const postCards = await Promise.all(posts.map(async item => {
-        const post = item.post || item;
-        const user = post.author;
+        const record = item.record;
+        const did = item.did;
+        const user = {
+            did,
+            handle: '',
+            displayName: record.metadata?.artist || '',
+            avatar: '/favicon.ico',
+        };
         let audioHtml = '';
-        let audioWaveformId = `waveform-${post.cid}`;
-        let lexiconRecord = post.record || post;
-        let playCount = await getLexiconPlayCount({ post });
-        // For lexicon posts, let renderPostCard handle player/artwork
-        return renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, playCount });
+        let audioWaveformId = `waveform-${item.rkey}`;
+        let playCount = record.stats?.plays || 0;
+        return renderPostCard({
+            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: item.rkey, record, author: user },
+            user,
+            audioHtml,
+            options: { lazyWaveformId: audioWaveformId },
+            lexiconRecord: record,
+            playCount
+        });
     }));
     html = postCards.join('');
     // At the end, add Load More button if needed
@@ -1086,47 +1083,37 @@ async function renderLikedPostsAlbumView() {
     html += '<div class="text-2xl font-bold mb-4 text-left">Likes</div>';
     html += '<div class="album-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">';
     const postCards = await Promise.all(likedPosts.map(async item => {
-        const post = item.post || item;
-        // Robust user object construction
-        let user = post.author;
-        if (!user) {
-            user = {
-                did: post.did || post.repo || '',
-                handle: post.handle || '',
-                displayName: post.displayName || post.handle || '',
-                avatar: post.avatar || '/favicon.ico',
-            };
-        }
-        let lexiconRecord = post.record || post;
-        let playCount;
-        try {
-            playCount = await getLexiconPlayCount({ post });
-        } catch (err) {
-            console.error('[renderLikedPostsAlbumView] Failed to get play count:', err, { post, user });
-            playCount = 0;
-        }
+        const record = item.record;
+        const did = item.did;
+        const user = {
+            did,
+            handle: '',
+            displayName: record.metadata?.artist || '',
+            avatar: '/favicon.ico',
+        };
+        let playCount = record.stats?.plays || 0;
         // --- Artwork ---
         let coverUrl = '';
-        if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-            const blobRef = extractBlobRef(lexiconRecord.artwork.ref);
-            console.debug('[renderLikedPostsAlbumView] Extracted artwork blobRef:', { raw: lexiconRecord.artwork.ref, extracted: blobRef });
+        if (record.artwork && record.artwork.ref) {
+            const blobRef = extractBlobRef(record.artwork.ref);
+            console.debug('[renderLikedPostsAlbumView] Extracted artwork blobRef:', { raw: record.artwork.ref, extracted: blobRef });
             coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
         }
         // --- Title and Artist ---
         let title = '';
         let artist = '';
-        if (lexiconRecord && lexiconRecord.metadata) {
-            title = lexiconRecord.metadata.title || '';
-            artist = lexiconRecord.metadata.artist || '';
+        if (record.metadata) {
+            title = record.metadata.title || '';
+            artist = record.metadata.artist || '';
         } else {
-            title = (post.record?.text || '').split('\n')[0].slice(0, 40) || 'Untitled';
+            title = (record.text || '').split('\n')[0].slice(0, 40) || 'Untitled';
             artist = user.displayName || user.handle || '';
         }
         // --- Audio ---
         let playBtnHtml = '';
-        if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-            const blobRef = extractBlobRef(lexiconRecord.audio.ref);
-            console.debug('[renderLikedPostsAlbumView] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
+        if (record.audio && record.audio.ref) {
+            const blobRef = extractBlobRef(record.audio.ref);
+            console.debug('[renderLikedPostsAlbumView] Extracted audio blobRef:', { raw: record.audio.ref, extracted: blobRef });
             playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
                 ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`}
                 <div class="album-cover-overlay"><i class="fas fa-play album-play-icon"></i></div>
@@ -1142,7 +1129,7 @@ async function renderLikedPostsAlbumView() {
         return `<div class="album-tile">
             ${playBtnHtml}
             <div class="album-title-row">
-                <a href="#" class="album-title-link" data-post-uri="${post.uri}">${title || 'Untitled'}</a>
+                <a href="#" class="album-title-link" data-post-uri="${record.uri}">${title || 'Untitled'}</a>
             </div>
             <div class="album-artist-row">
                 <a href="#" class="album-artist-link" data-did="${user.did}">${artist}</a>
@@ -1244,11 +1231,18 @@ async function renderLikedPostsAlbumView() {
 // --- Utility: Filter for audio posts with correct tag and audio file ---
 function filterAudioPosts(posts) {
     return posts.filter(item => {
-        const post = item.post || item;
-        const tags = post.record && post.record.tags;
+        const record = item.record;
+        const did = item.did;
+        const user = {
+            did,
+            handle: '',
+            displayName: record.metadata?.artist || '',
+            avatar: '/favicon.ico',
+        };
+        const tags = record.tags;
         if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
         // Accept if legacy embed exists
-        const embed = post.record && post.record.embed;
+        const embed = record.embed;
         let fileEmbed = null;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
@@ -1299,13 +1293,13 @@ async function renderSinglePostView(postUri) {
         feedLoading.classList.add('hidden');
         return;
     }
-    const post = postData.post || postData;
-    const user = post.author;
-    let audioWaveformId = `waveform-${post.cid}`;
+    const record = postData.record;
+    const did = postData.author.did;
+    let audioWaveformId = `waveform-${record.cid}`;
     let lexiconRecord = null;
     let playCount = null;
     // Check for soundskyid tag
-    const tags = post.record && post.record.tags;
+    const tags = record.tags;
     let soundskyRkey = null;
     if (tags && Array.isArray(tags)) {
         for (const tag of tags) {
@@ -1317,14 +1311,13 @@ async function renderSinglePostView(postUri) {
     }
     if (soundskyRkey) {
         try {
-            const did = user.did;
             const lexRes = await fetchSoundSkyRecord(agent, { did, rkey: soundskyRkey });
             if (lexRes.success && lexRes.record) {
                 lexiconRecord = lexRes.record;
-                playCount = await getLexiconPlayCount({ post });
+                playCount = await getLexiconPlayCount({ post: postData });
             }
         } catch (err) {
-            console.error('[renderSinglePostView] Failed to fetch lexicon record:', err, { post, user, soundskyRkey });
+            console.error('[renderSinglePostView] Failed to fetch lexicon record:', err, { post: postData, did, soundskyRkey });
             lexiconRecord = null;
         }
     }
@@ -1334,10 +1327,10 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
         const blobRef = extractBlobRef(lexiconRecord.artwork.ref);
         console.debug('[renderSinglePostView] Extracted artwork blobRef:', { raw: lexiconRecord.artwork.ref, extracted: blobRef });
-        displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+        displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(blobRef)}`;
     } else {
         // Legacy artwork logic
-        let embed = post.record && post.record.embed;
+        let embed = record.embed;
         let images = [];
         if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
             images = embed.media.images;
@@ -1348,7 +1341,7 @@ async function renderSinglePostView(postUri) {
             const img = images[0];
             if (img.image && img.image.ref) {
                 const blobRef = extractBlobRef(img.image.ref);
-                displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+                displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(blobRef)}`;
             }
         }
     }
@@ -1363,8 +1356,8 @@ async function renderSinglePostView(postUri) {
         displayTitle = lexiconRecord.metadata.title || '';
         displayArtist = lexiconRecord.metadata.artist || '';
     } else {
-        displayTitle = (post.record?.text || '').split('\n')[0].slice(0, 100);
-        displayArtist = user.displayName || user.handle || '';
+        displayTitle = (record.text || '').split('\n')[0].slice(0, 100);
+        displayArtist = postData.author.displayName || postData.author.handle || '';
     }
     // Render the single post view layout
     document.getElementById('single-post-content').innerHTML = `
@@ -1372,34 +1365,42 @@ async function renderSinglePostView(postUri) {
             <div class="p-4">
                 ${titleRowHtml}
                 ${largeArtworkHtml}
-                ${await renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount })}
+                ${await renderPostCard({
+                    post: { uri: postUri, cid: record.cid, record, author: postData.author },
+                    user: postData.author,
+                    audioHtml: '',
+                    options: { lazyWaveformId: audioWaveformId },
+                    lexiconRecord: lexiconRecord || null,
+                    soundskyRkey,
+                    playCount
+                })}
             </div>
         </div>
-        <div id="comments-${post.cid}"></div>
+        <div id="comments-${record.cid}"></div>
     `;
     feedLoading.classList.add('hidden');
     // Setup lazy loader for lexicon or legacy audio
     if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
         const blobRef = extractBlobRef(lexiconRecord.audio.ref);
         console.debug('[renderSinglePostView] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
-        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0);
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, did, blobRef, lexiconRecord.audio.size), 0);
     } else {
         // Legacy embed logic
         let fileEmbed = null;
-        const embed = post.record && post.record.embed;
+        const embed = record.embed;
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
         if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
             const blobRef = extractBlobRef(fileEmbed.file.ref);
-            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
+            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, did, blobRef, fileEmbed.file.size), 0);
         }
     }
     // After rendering the single post, render comments using the same logic as the feed
     // Fetch the thread for comments (if not already available)
     try {
-        await renderSinglePostComments(post);
+        await renderSinglePostComments(postData);
     } catch (err) {
-        console.error('[renderSinglePostView] Failed to render comments:', err, { post });
+        console.error('[renderSinglePostView] Failed to render comments:', err, { post: postData });
         const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
         if (postCardContent) {
             postCardContent.insertAdjacentHTML('beforeend', '<div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4"><div class="text-red-400 text-xs">Failed to load comments.</div></div>');
@@ -1409,7 +1410,7 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord) {
         const playBtn = cardEl.querySelector('.soundsky-play-btn');
         if (playBtn) {
-            playBtn._soundskyPost = post;
+            playBtn._soundskyPost = record;
             playBtn._soundskyLexiconRecord = lexiconRecord;
         }
         const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
