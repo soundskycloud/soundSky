@@ -2,15 +2,15 @@
 import { formatRelativeTime } from './utils.js';
 // Import agent if needed, or pass as argument if refactoring later
 
-export async function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = null, soundskyRkey = null, playCount = null }) {
+export async function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = null, soundskyRkey = null, playCount = null, coverUrl = null }) {
     // --- Artwork ---
-    let coverUrl = '';
-    let artworkCid = lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.$link ? lexiconRecord.artwork.ref.$link : '';
-    if (artworkCid) {
-        console.debug('[renderPostCard] Using artworkCid:', artworkCid);
-        coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(artworkCid)}`;
-    } else if (lexiconRecord && lexiconRecord.artwork) {
-        console.error('[renderPostCard] Missing artworkCid (.ref.$link) for lexiconRecord', { lexiconRecord });
+    let artworkUrl = '';
+    if (coverUrl) {
+        artworkUrl = coverUrl;
+    } else if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.$link) {
+        artworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(lexiconRecord.artwork.ref.$link)}`;
+    } else {
+        artworkUrl = '/favicon.ico';
     }
     // --- Title and Artist ---
     let title = '';
@@ -51,7 +51,7 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
             </div>
             <div class="flex flex-col md:flex-row gap-4">
                 <div class="flex-shrink-0" style="width:96px;max-width:96px;">
-                    ${coverUrl ? `<img src="${coverUrl}" alt="cover" style="width:96px;height:96px;object-fit:cover;border-radius:12px;">` : `<img src="/favicon.ico" alt="cover" style="width:96px;height:96px;object-fit:cover;border-radius:12px;">`}
+                    <img src="${artworkUrl}" alt="cover" style="width:96px;height:96px;object-fit:cover;border-radius:12px;" onerror="this.onerror=null;this.src='/favicon.ico';">
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="text-lg font-bold mb-1 post-title-link" data-post-uri="${post.uri}" style="cursor:pointer;">${title || 'Untitled'}</div>

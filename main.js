@@ -310,6 +310,13 @@ async function appendAudioPostCard(item, feedGen) {
     const debugArtist = record.metadata?.artist || '';
     const audioCid = record.audio.ref.$link;
     const artworkCid = record.artwork?.ref?.$link;
+    // --- Cover fallback logic ---
+    let coverUrl = '';
+    if (artworkCid) {
+        coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(artworkCid)}`;
+    } else {
+        coverUrl = '/favicon.ico';
+    }
     console.debug('[appendAudioPostCard] UFOs-API mapping:', {
         item,
         record,
@@ -328,7 +335,8 @@ async function appendAudioPostCard(item, feedGen) {
             audioHtml,
             options: { lazyWaveformId: audioWaveformId },
             lexiconRecord: record,
-            playCount
+            playCount,
+            coverUrl // pass to post card for fallback
         });
     } catch (err) {
         console.error('[appendAudioPostCard] Failed to render post card:', err, { record, user });
@@ -346,6 +354,9 @@ async function appendAudioPostCard(item, feedGen) {
     if (playBtn) {
         playBtn._soundskyPost = record;
         playBtn._soundskyLexiconRecord = record;
+        playBtn.setAttribute('data-did', did);
+        playBtn.setAttribute('data-blob', audioCid);
+        playBtn.setAttribute('data-waveform-id', audioWaveformId);
     }
     const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
     if (playCountEl) {
@@ -356,18 +367,7 @@ async function appendAudioPostCard(item, feedGen) {
         _soundskyFirstCardAppended = true;
     }
     attachPostTitleLinkHandlers();
-    // Setup lazy loader for lexicon audio
-    setTimeout(() => {
-        try {
-            if (!audioCid) {
-                console.error('[appendAudioPostCard] Skipping setupLazyWaveSurfer: missing audioCid', { record, item });
-                return;
-            }
-            setupLazyWaveSurfer(audioWaveformId, did, audioCid, record.audio.size);
-        } catch (err) {
-            console.error('[appendAudioPostCard] Failed to setup lazy WaveSurfer:', err, { record, audioCid });
-        }
-    }, 0);
+    // Setup lazy loader for lexicon audio (no-op, handled by click now)
 }
 
 // Update fetchSoundskyFeed to render each card as soon as it's ready
@@ -1504,3 +1504,29 @@ function renderThreadedComments(replies, level = 0) {
         return `<div class=\"soundsky-comment-bubble\" style=\"margin-left:${indent};background:${bgShade};\"><div class=\"flex items-start w-full\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full mr-2\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1 min-w-0\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200 break-words\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2 self-start\" style=\"margin-left:auto;\">${likeBtnHtml}${deleteBtn}</div></div>${childReplies}</div>`;
     }).join('');
 }
+
+// --- Delegated click handler for waveform play buttons in feed/discovery ---
+feedContainer.addEventListener('click', async function(e) {
+    const playBtn = e.target.closest('.soundsky-play-btn');
+    if (playBtn) {
+        e.preventDefault();
+        // Pause all other players
+        if (window.soundskyWavesurfers) {
+            Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.pause && ws.pause(); } catch {} });
+        }
+        const did = playBtn.getAttribute('data-did');
+        const blobRef = playBtn.getAttribute('data-blob');
+        const waveformId = playBtn.getAttribute('data-waveform-id');
+        if (!did || !blobRef || !waveformId) {
+            console.error('[WaveformPlay] Missing did/blobRef/waveformId', { did, blobRef, waveformId });
+            return;
+        }
+        // Fetch audio blob URL and init WaveSurfer
+        try {
+            const audioUrl = await fetchAudioBlobUrl(did, blobRef);
+            initWaveSurfer(waveformId, audioUrl);
+        } catch (err) {
+            alert('Failed to load audio: ' + (err.message || err));
+        }
+    }
+});
