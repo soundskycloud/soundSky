@@ -63,6 +63,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             // Fetch and render sidebar liked songs after session resume
             setTimeout(fetchAndRenderSidebarLikedSongs, 1200);
         } catch (e) {
+            console.error('[SoundSky] Session resume failed:', e, '\nSaved session:', savedSession, '\nAgent:', agent);
             localStorage.removeItem('bskySession');
             window.location.href = '/login';
         }
