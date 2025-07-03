@@ -26,6 +26,24 @@ if (uploadForm) uploadForm.style.display = 'none';
 
 // --- Mini Liked Songs Sidebar ---
 
+// --- Helper: Get post param from URL ---
+function getPostParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('post');
+}
+function getArtistParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('artist');
+}
+function getSearchParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('q') || url.searchParams.get('search');
+}
+function getLinkParamFromUrl() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('l') || url.searchParams.get('link');
+}
+
 // On page load, try to resume session
 window.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.flex.h-screen.overflow-hidden').style.filter = 'blur(2px)';
@@ -415,21 +433,6 @@ renderSinglePostView = async function(...args) {
     await origRenderSinglePostView.apply(this, args);
     addArtistLinkHandlers();
 };
-
-function getArtistParamFromUrl() {
-    const url = new URL(window.location.href);
-    return url.searchParams.get('artist');
-}
-
-function getSearchParamFromUrl() {
-    const url = new URL(window.location.href);
-    return url.searchParams.get('q') || url.searchParams.get('search');
-}
-
-function getLinkParamFromUrl() {
-    const url = new URL(window.location.href);
-    return url.searchParams.get('l') || url.searchParams.get('link');
-}
 
 // --- New: Increment play count for custom lexicon posts ---
 async function incrementLexiconPlayCount(post) {
