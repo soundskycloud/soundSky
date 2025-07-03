@@ -356,7 +356,8 @@ async function appendAudioPostCard(audioPost, feedGen) {
     attachPostTitleLinkHandlers();
     // Setup lazy loader for lexicon audio
     if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-        const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
+        const blobRef = extractBlobRef(lexiconRecord.audio.ref);
+        console.debug('[appendAudioPostCard] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
         setTimeout(() => {
             try {
                 setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size);
@@ -1107,7 +1108,8 @@ async function renderLikedPostsAlbumView() {
         // --- Artwork ---
         let coverUrl = '';
         if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-            const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
+            const blobRef = extractBlobRef(lexiconRecord.artwork.ref);
+            console.debug('[renderLikedPostsAlbumView] Extracted artwork blobRef:', { raw: lexiconRecord.artwork.ref, extracted: blobRef });
             coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
         }
         // --- Title and Artist ---
@@ -1123,7 +1125,8 @@ async function renderLikedPostsAlbumView() {
         // --- Audio ---
         let playBtnHtml = '';
         if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-            const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
+            const blobRef = extractBlobRef(lexiconRecord.audio.ref);
+            console.debug('[renderLikedPostsAlbumView] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
             playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
                 ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`}
                 <div class="album-cover-overlay"><i class="fas fa-play album-play-icon"></i></div>
@@ -1260,6 +1263,17 @@ function filterAudioPosts(posts) {
     });
 }
 
+// --- Utility: Robustly extract blob ref string from ATProto blob objects ---
+function extractBlobRef(ref) {
+    if (!ref) return '';
+    if (typeof ref === 'string') return ref;
+    if (typeof ref === 'object') {
+        if (ref.$link) return ref.$link;
+        if (typeof ref.toString === 'function' && ref.toString() !== '[object Object]') return ref.toString();
+    }
+    return '';
+}
+
 // --- Patch renderSinglePostView to enforce strict lazy loading ---
 async function renderSinglePostView(postUri) {
     destroyAllWaveSurfers();
@@ -1318,7 +1332,8 @@ async function renderSinglePostView(postUri) {
     let largeArtworkHtml = '';
     let displayArtworkUrl = '';
     if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-        const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
+        const blobRef = extractBlobRef(lexiconRecord.artwork.ref);
+        console.debug('[renderSinglePostView] Extracted artwork blobRef:', { raw: lexiconRecord.artwork.ref, extracted: blobRef });
         displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
     } else {
         // Legacy artwork logic
@@ -1332,7 +1347,7 @@ async function renderSinglePostView(postUri) {
         if (images.length > 0) {
             const img = images[0];
             if (img.image && img.image.ref) {
-                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                const blobRef = extractBlobRef(img.image.ref);
                 displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
             }
         }
@@ -1365,7 +1380,8 @@ async function renderSinglePostView(postUri) {
     feedLoading.classList.add('hidden');
     // Setup lazy loader for lexicon or legacy audio
     if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-        const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
+        const blobRef = extractBlobRef(lexiconRecord.audio.ref);
+        console.debug('[renderSinglePostView] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
         setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0);
     } else {
         // Legacy embed logic
@@ -1374,7 +1390,7 @@ async function renderSinglePostView(postUri) {
         if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
         else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
         if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            const blobRef = extractBlobRef(fileEmbed.file.ref);
             setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
         }
     }
