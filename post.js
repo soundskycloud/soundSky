@@ -24,6 +24,8 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
     }
     // --- Audio ---
     let audioCid = lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref && lexiconRecord.audio.ref.$link ? lexiconRecord.audio.ref.$link : '';
+    // --- Waveform Placeholder ---
+    let waveformId = options.lazyWaveformId || `waveform-${post.cid || post.rkey}`;
     // --- Play Button ---
     let playBtnHtml = '';
     if (audioCid) {
@@ -31,8 +33,6 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
             <i class="fas fa-play"></i>
         </button>`;
     }
-    // --- Waveform Placeholder ---
-    let waveformId = options.lazyWaveformId || `waveform-${post.cid || post.rkey}`;
     let waveformHtml = `<div id="${waveformId}" class="wavesurfer waveform soundsky-waveform-placeholder relative">
         <div class="soundsky-placeholder-content"><i class="fas fa-wave-square"></i> Waveform will appear here</div>
         ${playBtnHtml}
