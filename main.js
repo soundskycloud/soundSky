@@ -1516,15 +1516,28 @@ feedContainer.addEventListener('click', async function(e) {
         }
         const did = playBtn.getAttribute('data-did');
         const blobRef = playBtn.getAttribute('data-blob');
-        const waveformId = playBtn.getAttribute('data-waveform-id');
+        // Find the waveform placeholder div
+        const postCard = playBtn.closest('.post-card');
+        const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
+        const waveformId = waveformDiv ? waveformDiv.id : null;
         if (!did || !blobRef || !waveformId) {
             console.error('[WaveformPlay] Missing did/blobRef/waveformId', { did, blobRef, waveformId });
             return;
+        }
+        // Remove placeholder content
+        if (waveformDiv) {
+            waveformDiv.innerHTML = '';
         }
         // Fetch audio blob URL and init WaveSurfer
         try {
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
             initWaveSurfer(waveformId, audioUrl);
+            // Optionally increment play count
+            // Find the post URI from the card
+            const postUri = postCard ? postCard.getAttribute('data-post-uri') : null;
+            if (postUri) {
+                incrementLexiconPlayCount({ uri: postUri });
+            }
         } catch (err) {
             alert('Failed to load audio: ' + (err.message || err));
         }

@@ -23,20 +23,32 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
         artist = user.displayName || user.handle || '';
     }
     // --- Audio ---
-    let playBtnHtml = '';
     let audioCid = lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref && lexiconRecord.audio.ref.$link ? lexiconRecord.audio.ref.$link : '';
+    // --- Play Button ---
+    let playBtnHtml = '';
     if (audioCid) {
-        console.debug('[renderPostCard] Using audioCid:', audioCid);
-        playBtnHtml = `<button class="soundsky-play-btn" data-did="${user.did}" data-blob="${audioCid}" title="Play">
+        playBtnHtml = `<button class="soundsky-play-btn waveform-play-btn" data-did="${user.did}" data-blob="${audioCid}" title="Play">
             <i class="fas fa-play"></i>
         </button>`;
-    } else if (lexiconRecord && lexiconRecord.audio) {
-        console.error('[renderPostCard] Missing audioCid (.ref.$link) for lexiconRecord', { lexiconRecord });
     }
+    // --- Waveform Placeholder ---
+    let waveformId = options.lazyWaveformId || `waveform-${post.cid || post.rkey}`;
+    let waveformHtml = `<div id="${waveformId}" class="wavesurfer waveform soundsky-waveform-placeholder">
+        <div class="soundsky-placeholder-content"><i class="fas fa-wave-square"></i> Waveform will appear here</div>
+    </div>`;
     // --- Play Count (for lexicon posts) ---
     let playCountHtml = '';
     if (typeof playCount === 'number') {
         playCountHtml = `<div class="soundsky-playcount-row text-xs text-gray-400 mt-1">Plays: <span class="ml-1">${playCount}</span></div>`;
+    }
+    // --- Debug/Meta Links ---
+    let debugLinksHtml = '';
+    if (lexiconRecord) {
+        debugLinksHtml = `<div class="soundsky-debug-links text-xs text-gray-400 mt-1">
+            <a href="https://bsky.social/profile/${user.did}" target="_blank" class="underline">Profile</a> |
+            <a href="https://bsky.social/profile/${user.did}/post/${post.cid || post.rkey}" target="_blank" class="underline">View on Bsky</a> |
+            <a href="https://plc.directory/${user.did}" target="_blank" class="underline">DID</a>
+        </div>`;
     }
     // --- Post Card HTML ---
     return `
@@ -60,7 +72,8 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
                         ${playBtnHtml}
                         ${playCountHtml}
                     </div>
-                    ${audioHtml || ''}
+                    ${waveformHtml}
+                    ${debugLinksHtml}
                 </div>
             </div>
         </div>
