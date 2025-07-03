@@ -505,16 +505,11 @@ renderSinglePostView = async function(...args) {
 };
 
 // --- New: Increment play count for custom lexicon posts ---
-async function incrementLexiconPlayCount(post) {
-    if (!post || !post.uri) return;
+async function incrementLexiconPlayCount({ did, rkey }) {
+    if (!did || !rkey) return;
     try {
-        const uriParts = String(post.uri).replace('at://', '').split('/');
-        if (uriParts.length !== 3) return;
-        const did = uriParts[0];
-        const collection = uriParts[1];
-        const rkey = uriParts[2];
         // Fetch the latest record
-        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
+        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection: 'cloud.soundsky.audio', rkey });
         const record = res.data.value;
         // Ensure stats exists and increment
         if (!record.stats) record.stats = {};
@@ -523,12 +518,13 @@ async function incrementLexiconPlayCount(post) {
         // Write back the updated record
         await agent.api.com.atproto.repo.putRecord({
             repo: did,
-            collection,
+            collection: 'cloud.soundsky.audio',
             rkey,
             record
         });
         // Update the UI immediately
-        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .flex.items-center.text-gray-700 span.ml-1`);
+        const postUri = `at://${did}/cloud.soundsky.audio/${rkey}`;
+        const playCountEls = document.querySelectorAll(`[data-post-uri="${postUri}"] .soundsky-playcount-row span.ml-1`);
         playCountEls.forEach(el => {
             el.textContent = record.stats.plays;
         });
@@ -1520,8 +1516,15 @@ feedContainer.addEventListener('click', async function(e) {
         const postCard = playBtn.closest('.post-card');
         const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
         const waveformId = waveformDiv ? waveformDiv.id : null;
-        if (!did || !blobRef || !waveformId) {
-            console.error('[WaveformPlay] Missing did/blobRef/waveformId', { did, blobRef, waveformId });
+        // Extract rkey from post URI
+        const postUri = postCard ? postCard.getAttribute('data-post-uri') : null;
+        let rkey = null;
+        if (postUri) {
+            const parts = postUri.replace('at://', '').split('/');
+            if (parts.length === 3) rkey = parts[2];
+        }
+        if (!did || !blobRef || !waveformId || !rkey) {
+            console.error('[WaveformPlay] Missing did/blobRef/waveformId/rkey', { did, blobRef, waveformId, rkey });
             return;
         }
         // Remove placeholder content
@@ -1532,12 +1535,8 @@ feedContainer.addEventListener('click', async function(e) {
         try {
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
             initWaveSurfer(waveformId, audioUrl);
-            // Optionally increment play count
-            // Find the post URI from the card
-            const postUri = postCard ? postCard.getAttribute('data-post-uri') : null;
-            if (postUri) {
-                incrementLexiconPlayCount({ uri: postUri });
-            }
+            // Increment play count using did and rkey
+            incrementLexiconPlayCount({ did, rkey });
         } catch (err) {
             alert('Failed to load audio: ' + (err.message || err));
         }
