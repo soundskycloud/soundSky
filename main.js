@@ -269,7 +269,16 @@ async function appendAudioPostCard(audioPost, feedGen) {
     console.debug('[appendAudioPostCard] called for', audioPost);
     if (_soundskyFeedCancelled || feedGen !== _soundskyFeedGeneration) return;
     const post = audioPost.post || audioPost;
-    const user = post.author;
+    // Robust user object construction
+    let user = post.author;
+    if (!user) {
+        user = {
+            did: post.did || post.repo || '',
+            handle: post.handle || '',
+            displayName: post.displayName || post.handle || '',
+            avatar: post.avatar || '/favicon.ico',
+        };
+    }
     // Banlist check: skip if author is banned
     if (user && user.handle) {
         const handle = user.handle;
@@ -281,17 +290,33 @@ async function appendAudioPostCard(audioPost, feedGen) {
     let audioHtml = '';
     let audioWaveformId = `waveform-${post.cid}`;
     let lexiconRecord = post.record || post;
-    let playCount = await getLexiconPlayCount({ post });
+    let playCount;
+    try {
+        playCount = await getLexiconPlayCount({ post });
+    } catch (err) {
+        console.error('[appendAudioPostCard] Failed to get play count:', err, { post, user });
+        playCount = 0;
+    }
     // Ensure lexicon record has audio
     if (!lexiconRecord || !lexiconRecord.audio || !lexiconRecord.audio.ref) {
-        console.warn('[appendAudioPostCard] Skipping post: lexicon record missing audio', post.uri);
+        console.warn('[appendAudioPostCard] Skipping post: lexicon record missing audio', { post, user, lexiconRecord });
         return;
     }
     if (feedGen !== _soundskyFeedGeneration) return;
-    const cardHtml = await renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, playCount });
+    let cardHtml;
+    try {
+        cardHtml = await renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, playCount });
+    } catch (err) {
+        console.error('[appendAudioPostCard] Failed to render post card:', err, { post, user, lexiconRecord });
+        return;
+    }
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
     const cardEl = tempDiv.firstElementChild;
+    if (!cardEl) {
+        console.error('[appendAudioPostCard] cardEl is null after parsing cardHtml', { cardHtml, post, user });
+        return;
+    }
     feedContainer.appendChild(cardEl);
     if (lexiconRecord) {
         const playBtn = cardEl.querySelector('.soundsky-play-btn');
@@ -312,7 +337,13 @@ async function appendAudioPostCard(audioPost, feedGen) {
     // Setup lazy loader for lexicon audio
     if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
         const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
-        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0);
+        setTimeout(() => {
+            try {
+                setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size);
+            } catch (err) {
+                console.error('[appendAudioPostCard] Failed to setup lazy WaveSurfer:', err, { post, user, blobRef });
+            }
+        }, 0);
     }
 }
 
@@ -343,13 +374,18 @@ async function fetchSoundskyFeed({ append = false, mode = 'discover', q = false 
         if (records.length > 0) {
             loadedAudioPosts = append ? loadedAudioPosts.concat(records) : records;
             for (const audioPost of records) {
-                await appendAudioPostCard(audioPost, thisFeedGen);
+                try {
+                    await appendAudioPostCard(audioPost, thisFeedGen);
+                } catch (err) {
+                    console.error('[fetchSoundskyFeed] Failed to append audio post card:', err, { audioPost });
+                }
             }
         } else {
             feedContainer.innerHTML = `<div class="text-center text-gray-500 py-8">No music found.</div>`;
         }
         // TODO: Handle pagination if the API supports it
     } catch (err) {
+        console.error('[fetchSoundskyFeed] Error loading feed:', err);
         feedContainer.innerHTML = `<div class='text-red-500 py-8'>Failed to load SoundSky feed: ${err.message || err}</div>`;
     } finally {
         feedLoading.classList.add('hidden');
@@ -1016,6 +1052,7 @@ async function renderLikedPostsAlbumView() {
             likedPosts = [];
         }
     } catch (e) {
+        console.error('[renderLikedPostsAlbumView] Failed to load liked posts:', e);
         feedContainer.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load liked posts.</div>';
         return;
     }
@@ -1029,9 +1066,24 @@ async function renderLikedPostsAlbumView() {
     html += '<div class="album-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">';
     const postCards = await Promise.all(likedPosts.map(async item => {
         const post = item.post || item;
-        const user = post.author;
+        // Robust user object construction
+        let user = post.author;
+        if (!user) {
+            user = {
+                did: post.did || post.repo || '',
+                handle: post.handle || '',
+                displayName: post.displayName || post.handle || '',
+                avatar: post.avatar || '/favicon.ico',
+            };
+        }
         let lexiconRecord = post.record || post;
-        let playCount = await getLexiconPlayCount({ post });
+        let playCount;
+        try {
+            playCount = await getLexiconPlayCount({ post });
+        } catch (err) {
+            console.error('[renderLikedPostsAlbumView] Failed to get play count:', err, { post, user });
+            playCount = 0;
+        }
         // --- Artwork ---
         let coverUrl = '';
         if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
@@ -1119,7 +1171,10 @@ async function renderLikedPostsAlbumView() {
             let audioUrl = null;
             try {
                 audioUrl = await fetchAudioBlobUrl(did, blobRef);
-            } catch (e) { btn.classList.remove('playing'); if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); } return; }
+            } catch (e) { 
+                console.error('[renderLikedPostsAlbumView] Failed to fetch audio blob URL:', e, { did, blobRef });
+                btn.classList.remove('playing'); if (overlayIcon) { overlayIcon.classList.remove('fa-pause'); overlayIcon.classList.add('fa-play'); } return; 
+            }
             const audio = document.createElement('audio');
             audio.className = 'album-cover-audio';
             audio.src = audioUrl;
@@ -1205,6 +1260,7 @@ async function renderSinglePostView(postUri) {
         const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
         postData = threadRes.data.thread && threadRes.data.thread.post ? threadRes.data.thread : threadRes.data.thread;
     } catch (err) {
+        console.error('[renderSinglePostView] Failed to load post:', err, { postUri });
         document.getElementById('single-post-content').innerHTML = `<div class='text-red-500'>Failed to load post.</div>`;
         feedLoading.classList.add('hidden');
         return;
@@ -1234,6 +1290,7 @@ async function renderSinglePostView(postUri) {
                 playCount = await getLexiconPlayCount({ post });
             }
         } catch (err) {
+            console.error('[renderSinglePostView] Failed to fetch lexicon record:', err, { post, user, soundskyRkey });
             lexiconRecord = null;
         }
     }
@@ -1306,6 +1363,7 @@ async function renderSinglePostView(postUri) {
     try {
         await renderSinglePostComments(post);
     } catch (err) {
+        console.error('[renderSinglePostView] Failed to render comments:', err, { post });
         const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
         if (postCardContent) {
             postCardContent.insertAdjacentHTML('beforeend', '<div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4"><div class="text-red-400 text-xs">Failed to load comments.</div></div>');
@@ -1389,7 +1447,7 @@ async function renderSinglePostComments(post) {
                     commentForm.querySelector('button[type="submit"]').disabled = false;
                 }
             });
-    } else {
+        } else {
             console.debug('[SinglePost] Comment form not found for direct handler');
         }
     }, 0);
