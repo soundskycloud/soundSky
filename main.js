@@ -5,7 +5,7 @@ import { renderArtistPage } from './artist.js';
 import { renderPostCard } from './post.js';
 import { initWaveSurfer, setupLazyWaveSurfer } from './audioPlayer.js';
 import { renderSidebarLikedSongs, fetchAndRenderSidebarLikedSongs } from './sidebar.js';
-import { renderSinglePostComments, renderThreadedComments } from './comments.js';
+// [REMOVED: import { renderSinglePostComments, renderThreadedComments } from './comments.js';]
 import { fetchNotifications, updateNotificationBell, renderNotificationDropdown, setupNotificationDropdown, markNotificationsSeen, setupNotificationNavRefresh } from './notifications.js';
 
 // Change agent to let, not const
@@ -1156,4 +1156,259 @@ async function renderLikedPostsAlbumView() {
             }
         });
     });
+}
+
+// --- Utility: Filter for audio posts with correct tag and audio file ---
+function filterAudioPosts(posts) {
+    return posts.filter(item => {
+        const post = item.post || item;
+        const tags = post.record && post.record.tags;
+        if (!tags || !Array.isArray(tags) || !tags.includes('soundskyaudio')) return false;
+        // Accept if legacy embed exists
+        const embed = post.record && post.record.embed;
+        let fileEmbed = null;
+        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType && fileEmbed.file.mimeType.startsWith('audio/')) return true;
+        // Accept if soundskyid tag exists
+        for (const tag of tags) {
+            if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+                return true;
+            }
+        }
+        return false;
+    });
+}
+
+// --- Patch renderSinglePostView to enforce strict lazy loading ---
+async function renderSinglePostView(postUri) {
+    destroyAllWaveSurfers();
+    feedContainer.style.display = '';
+    feedLoading.classList.remove('hidden'); // Show loading indicator
+    if (!feedContainer.contains(feedLoading)) {
+        feedContainer.appendChild(feedLoading);
+    }
+    const uploadForm = document.getElementById('create-audio-post');
+    if (uploadForm) uploadForm.style.display = 'none';
+    document.querySelector('.flex.h-screen.overflow-hidden').style.filter = '';
+    feedContainer.innerHTML = `<div id='single-post-content'></div>`;
+    if (!feedContainer.contains(feedLoading)) {
+        feedContainer.appendChild(feedLoading);
+    }
+    let postData;
+    try {
+        const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: postUri });
+        postData = threadRes.data.thread && threadRes.data.thread.post ? threadRes.data.thread : threadRes.data.thread;
+    } catch (err) {
+        document.getElementById('single-post-content').innerHTML = `<div class='text-red-500'>Failed to load post.</div>`;
+        feedLoading.classList.add('hidden');
+        return;
+    }
+    const post = postData.post || postData;
+    const user = post.author;
+    let audioWaveformId = `waveform-${post.cid}`;
+    let lexiconRecord = null;
+    let playCount = null;
+    // Check for soundskyid tag
+    const tags = post.record && post.record.tags;
+    let soundskyRkey = null;
+    if (tags && Array.isArray(tags)) {
+        for (const tag of tags) {
+            if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+                soundskyRkey = tag.split('=')[1];
+                break;
+            }
+        }
+    }
+    if (soundskyRkey) {
+        try {
+            const did = user.did;
+            const lexRes = await fetchSoundSkyRecord(agent, { did, rkey: soundskyRkey });
+            if (lexRes.success && lexRes.record) {
+                lexiconRecord = lexRes.record;
+                playCount = await getLexiconPlayCount({ post });
+            }
+        } catch (err) {
+            lexiconRecord = null;
+        }
+    }
+    // Prepare artwork HTML for large display if available
+    let largeArtworkHtml = '';
+    let displayArtworkUrl = '';
+    if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
+        const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
+        displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+    } else {
+        // Legacy artwork logic
+        let embed = post.record && post.record.embed;
+        let images = [];
+        if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
+            images = embed.media.images;
+        } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
+            images = embed.images;
+        }
+        if (images.length > 0) {
+            const img = images[0];
+            if (img.image && img.image.ref) {
+                const blobRef = img.image.ref && img.image.ref.toString ? img.image.ref.toString() : img.image.ref;
+                displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+            }
+        }
+    }
+    if (displayArtworkUrl) {
+        largeArtworkHtml = `<div class="singlepost-artwork-wrapper p-4" style="width:100%;max-width:100%;text-align:center;"><img src="${displayArtworkUrl}" alt="Artwork" style="max-width:100%;max-height:340px;border-radius:18px;box-shadow:0 2px 16px rgba(0,0,0,0.10);background:#f3f4f6;object-fit:contain;"></div>`;
+    }
+    // Prepare title/artist row
+    let titleRowHtml = '';
+    let displayTitle = '';
+    let displayArtist = '';
+    if (lexiconRecord && lexiconRecord.metadata) {
+        displayTitle = lexiconRecord.metadata.title || '';
+        displayArtist = lexiconRecord.metadata.artist || '';
+    } else {
+        displayTitle = (post.record?.text || '').split('\n')[0].slice(0, 100);
+        displayArtist = user.displayName || user.handle || '';
+    }
+    // Render the single post view layout
+    document.getElementById('single-post-content').innerHTML = `
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden post-card transition duration-200 ease-in-out mx-auto mt-1 mb-8">
+            <div class="p-4">
+                ${titleRowHtml}
+                ${largeArtworkHtml}
+                ${await renderPostCard({ post, user, audioHtml: '', options: { lazyWaveformId: audioWaveformId }, lexiconRecord: lexiconRecord || null, soundskyRkey, playCount })}
+            </div>
+        </div>
+        <div id="comments-${post.cid}"></div>
+    `;
+    feedLoading.classList.add('hidden');
+    // Setup lazy loader for lexicon or legacy audio
+    if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
+        const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, lexiconRecord.audio.size), 0);
+    } else {
+        // Legacy embed logic
+        let fileEmbed = null;
+        const embed = post.record && post.record.embed;
+        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
+        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
+        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
+            const blobRef = fileEmbed.file.ref && fileEmbed.file.ref.toString ? fileEmbed.file.ref.toString() : fileEmbed.file.ref;
+            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, user.did, blobRef, fileEmbed.file.size), 0);
+        }
+    }
+    // After rendering the single post, render comments using the same logic as the feed
+    // Fetch the thread for comments (if not already available)
+    try {
+        await renderSinglePostComments(post);
+    } catch (err) {
+        const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
+        if (postCardContent) {
+            postCardContent.insertAdjacentHTML('beforeend', '<div class="mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4"><div class="text-red-400 text-xs">Failed to load comments.</div></div>');
+        }
+    }
+    const cardEl = document.querySelector('#single-post-content .post-card');
+    if (lexiconRecord) {
+        const playBtn = cardEl.querySelector('.soundsky-play-btn');
+        if (playBtn) {
+            playBtn._soundskyPost = post;
+            playBtn._soundskyLexiconRecord = lexiconRecord;
+        }
+        const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
+        if (playCountEl) {
+            playCountEl.textContent = typeof playCount === 'number' ? playCount : (typeof lexiconRecord.stats?.plays === 'number' ? lexiconRecord.stats.plays : 0);
+        }
+    }
+}
+
+// --- Helper: Render the comment section for a single post (by post object) ---
+async function renderSinglePostComments(post) {
+    // Find the .p-4 content area inside the post card
+    const postCardContent = document.querySelector('#single-post-content .post-card .p-4');
+    if (!postCardContent) return;
+    const threadRes = await agent.api.app.bsky.feed.getPostThread({ uri: post.uri });
+    const replies = (threadRes.data.thread?.replies || []);
+    // Render the comment section using the correct markup and classes
+    const currentUserAvatar = agent.session?.did ? (document.getElementById('current-user-avatar')?.src || defaultAvatar) : defaultAvatar;
+    const commentBlockHtml = `
+      <div class=\"mt-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4\">
+        <div class=\"flex items-center gap-2 mb-2\">
+          <img src=\"${currentUserAvatar}\" class=\"h-8 w-8 rounded-full\" alt=\"Me\" onerror=\"this.onerror=null;this.src='/favicon.ico';\">
+          <form id=\"comment-form-${post.cid}\" class=\"flex-1 flex items-center gap-2\">
+            <input id=\"comment-input-${post.cid}\" type=\"text\" placeholder=\"Write a comment\" class=\"flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2 text-sm focus:outline-none\" maxlength=\"280\" autocomplete=\"off\">
+            <button id=\"comment-send-${post.cid}\" type=\"submit\" class=\"p-2 text-blue-500 hover:text-blue-600\" title=\"Send\">
+              <svg width=\"20\" height=\"20\" fill=\"none\" viewBox=\"0 0 20 20\"><path d=\"M2.5 17.5l15-7.5-15-7.5v6.25l10 1.25-10 1.25v6.25z\" fill=\"currentColor\"></path></svg>
+            </button>
+          </form>
+        </div>
+        <div id=\"comments-${post.cid}\" class=\"space-y-2\">
+          ${
+            replies.length === 0
+              ? '<div class=\\"text-gray-400 text-xs\\">No comments yet.</div>'
+              : renderThreadedComments(replies)
+          }
+        </div>
+      </div>
+    `;
+    // Remove any old comment section (by id)
+    const oldCommentSection = postCardContent.querySelector(`#comments-${post.cid}`)?.parentElement;
+    if (oldCommentSection) oldCommentSection.remove();
+    // Insert the comment section at the end of .p-4
+    postCardContent.insertAdjacentHTML('beforeend', commentBlockHtml);
+    // --- Add direct event handler for the comment form (single-post view) ---
+    setTimeout(() => {
+        const commentForm = document.getElementById(`comment-form-${post.cid}`);
+        if (commentForm) {
+            commentForm.addEventListener('submit', async function(e) {
+                console.debug('[SinglePost] Comment form submit handler fired');
+                e.preventDefault();
+                const input = commentForm.querySelector('input[type="text"]');
+                if (!input) { console.debug('[SinglePost] No input found'); return; }
+                const text = input.value.trim();
+                if (!text) { console.debug('[SinglePost] No text entered'); return; }
+                commentForm.querySelector('button[type="submit"]').disabled = true;
+                try {
+                    await agent.post({
+                        text,
+                        reply: {
+                            root: { cid: post.cid, uri: post.uri },
+                            parent: { cid: post.cid, uri: post.uri }
+                        }
+                    });
+                    input.value = '';
+                    console.debug('[SinglePost] Comment posted, reloading comment section');
+                    await renderSinglePostComments(post);
+                } catch (err) {
+                    alert('Failed to post comment: ' + (err.message || err));
+                    console.error('[SinglePost] Failed to post comment:', err);
+                } finally {
+                    commentForm.querySelector('button[type="submit"]').disabled = false;
+                }
+            });
+    } else {
+            console.debug('[SinglePost] Comment form not found for direct handler');
+        }
+    }, 0);
+}
+
+// --- Helper: Recursively render threaded comments (minimal indentation, full-width rows) ---
+function renderThreadedComments(replies, level = 0) {
+    if (!replies || !Array.isArray(replies) || replies.length === 0) return '';
+    // Minimal indentation: 1vw per level, capped at 8px
+    const indent = `calc(min(1vw, 8px) * ${level})`;
+    // Alternate background shade for nesting
+    const bgShade = level % 2 === 0 ? 'rgba(36,40,48,0.10)' : 'rgba(36,40,48,0.16)';
+    return replies.map(reply => {
+        const author = reply.post.author;
+        const avatar = author.avatar || `https://cdn.bsky.app/img/avatar_thumbnail/plain/${author.did || ''}/@jpeg`;
+        const name = author.displayName || author.handle || 'Unknown';
+        const commentText = reply.post.record.text || '';
+        const isOwnComment = agent.session && agent.session.did === author.did;
+        const deleteBtn = isOwnComment ? `<button class='ml-2 px-1 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 delete-comment-btn' data-uri='${reply.post.uri}' title='Delete comment'><i class='fa-solid fa-trash-can'></i></button>` : '';
+        const liked = reply.post.viewer && reply.post.viewer.like;
+        const likeCount = reply.post.likeCount || 0;
+        const likeBtnHtml = `<button class=\"like-comment-btn flex items-center space-x-1 text-xs ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${reply.post.uri}\" data-cid=\"${reply.post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
+        // Recursively render child replies
+        const childReplies = renderThreadedComments(reply.replies, level + 1);
+        return `<div class=\"soundsky-comment-bubble\" style=\"margin-left:${indent};background:${bgShade};\"><div class=\"flex items-start w-full\"><img src=\"${avatar}\" class=\"h-7 w-7 rounded-full mr-2\" alt=\"${name}\" onerror=\"this.onerror=null;this.src='${defaultAvatar}';\"><div class=\"flex-1 min-w-0\"><span class=\"font-medium text-xs text-gray-900 dark:text-gray-100\">${name}</span><p class=\"text-xs text-gray-700 dark:text-gray-200 break-words\">${commentText}</p></div><div class=\"flex items-center gap-1 ml-2 self-start\" style=\"margin-left:auto;\">${likeBtnHtml}${deleteBtn}</div></div>${childReplies}</div>`;
+    }).join('');
 }
