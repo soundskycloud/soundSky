@@ -176,6 +176,18 @@ if (navLikes) navLikes.onclick = (e) => {
     renderLikedPostsAlbumView();
 };
 
+// --- Utility: Clear all SoundSky params from the URL (without reload) ---
+function clearAllParamsInUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('post');
+    url.searchParams.delete('artist');
+    url.searchParams.delete('q');
+    url.searchParams.delete('search');
+    url.searchParams.delete('l');
+    url.searchParams.delete('link');
+    window.history.replaceState({}, document.title, url.pathname + url.search);
+}
+
 // --- Utility: Fetch audio blob URL with CORS fallback ---
 async function fetchAudioBlobUrl(userDid, blobRef) {
     // Look up the user's PDS/serviceEndpoint using getProfile
@@ -347,9 +359,13 @@ async function appendAudioPostCard(item, feedGen) {
     // Setup lazy loader for lexicon audio
     setTimeout(() => {
         try {
+            if (!audioCid) {
+                console.error('[appendAudioPostCard] Skipping setupLazyWaveSurfer: missing audioCid', { record, item });
+                return;
+            }
             setupLazyWaveSurfer(audioWaveformId, did, audioCid, record.audio.size);
         } catch (err) {
-            console.error('[appendAudioPostCard] Failed to setup lazy WaveSurfer:', err, { record, user, audioCid });
+            console.error('[appendAudioPostCard] Failed to setup lazy WaveSurfer:', err, { record, audioCid });
         }
     }, 0);
 }
@@ -1094,10 +1110,11 @@ async function renderLikedPostsAlbumView() {
         let playCount = record.stats?.plays || 0;
         // --- Artwork ---
         let coverUrl = '';
-        if (record.artwork && record.artwork.ref) {
-            const blobRef = extractBlobRef(record.artwork.ref);
-            console.debug('[renderLikedPostsAlbumView] Extracted artwork blobRef:', { raw: record.artwork.ref, extracted: blobRef });
-            coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+        let artworkCid = record.artwork && record.artwork.ref && record.artwork.ref.$link ? record.artwork.ref.$link : '';
+        if (artworkCid) {
+            coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(artworkCid)}`;
+        } else if (record.artwork) {
+            console.error('[renderLikedPostsAlbumView] Missing artworkCid (.ref.$link) for record', { record, item });
         }
         // --- Title and Artist ---
         let title = '';
@@ -1111,14 +1128,14 @@ async function renderLikedPostsAlbumView() {
         }
         // --- Audio ---
         let playBtnHtml = '';
-        if (record.audio && record.audio.ref) {
-            const blobRef = extractBlobRef(record.audio.ref);
-            console.debug('[renderLikedPostsAlbumView] Extracted audio blobRef:', { raw: record.audio.ref, extracted: blobRef });
-            playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
+        let audioCid = record.audio && record.audio.ref && record.audio.ref.$link ? record.audio.ref.$link : '';
+        if (audioCid) {
+            playBtnHtml = `<button class="album-cover-btn" data-did="${user.did}" data-blob="${audioCid}" title="Play">
                 ${coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`}
                 <div class="album-cover-overlay"><i class="fas fa-play album-play-icon"></i></div>
             </button>`;
         } else {
+            if (record.audio) console.error('[renderLikedPostsAlbumView] Missing audioCid (.ref.$link) for record', { record, item });
             playBtnHtml = coverUrl ? `<img src="${coverUrl}" alt="cover" class="album-cover-img" loading="lazy" onerror="this.onerror=null;this.src='/favicon.ico';">` : `<img src="/favicon.ico" alt="cover" class="album-cover-img" loading="lazy">`;
         }
         // --- Play Count (for lexicon posts) ---
@@ -1260,11 +1277,10 @@ function filterAudioPosts(posts) {
 // --- Utility: Robustly extract blob ref string from ATProto blob objects ---
 function extractBlobRef(ref) {
     if (!ref) return '';
+    if (typeof ref === 'object' && ref.$link) return ref.$link;
     if (typeof ref === 'string') return ref;
-    if (typeof ref === 'object') {
-        if (ref.$link) return ref.$link;
-        if (typeof ref.toString === 'function' && ref.toString() !== '[object Object]') return ref.toString();
-    }
+    // If we get here, log and return empty string
+    console.error('[extractBlobRef] Invalid blob ref structure:', ref);
     return '';
 }
 
@@ -1324,26 +1340,11 @@ async function renderSinglePostView(postUri) {
     // Prepare artwork HTML for large display if available
     let largeArtworkHtml = '';
     let displayArtworkUrl = '';
-    if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-        const blobRef = extractBlobRef(lexiconRecord.artwork.ref);
-        console.debug('[renderSinglePostView] Extracted artwork blobRef:', { raw: lexiconRecord.artwork.ref, extracted: blobRef });
-        displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(blobRef)}`;
-    } else {
-        // Legacy artwork logic
-        let embed = record.embed;
-        let images = [];
-        if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.images && Array.isArray(embed.media.images)) {
-            images = embed.media.images;
-        } else if (embed && embed.$type === 'app.bsky.embed.file' && embed.images && Array.isArray(embed.images)) {
-            images = embed.images;
-        }
-        if (images.length > 0) {
-            const img = images[0];
-            if (img.image && img.image.ref) {
-                const blobRef = extractBlobRef(img.image.ref);
-                displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(blobRef)}`;
-            }
-        }
+    let artworkCid = lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.$link ? lexiconRecord.artwork.ref.$link : '';
+    if (artworkCid) {
+        displayArtworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(artworkCid)}`;
+    } else if (lexiconRecord && lexiconRecord.artwork) {
+        console.error('[renderSinglePostView] Missing artworkCid (.ref.$link) for lexiconRecord', { lexiconRecord });
     }
     if (displayArtworkUrl) {
         largeArtworkHtml = `<div class="singlepost-artwork-wrapper p-4" style="width:100%;max-width:100%;text-align:center;"><img src="${displayArtworkUrl}" alt="Artwork" style="max-width:100%;max-height:340px;border-radius:18px;box-shadow:0 2px 16px rgba(0,0,0,0.10);background:#f3f4f6;object-fit:contain;"></div>`;
@@ -1380,20 +1381,11 @@ async function renderSinglePostView(postUri) {
     `;
     feedLoading.classList.add('hidden');
     // Setup lazy loader for lexicon or legacy audio
-    if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-        const blobRef = extractBlobRef(lexiconRecord.audio.ref);
-        console.debug('[renderSinglePostView] Extracted audio blobRef:', { raw: lexiconRecord.audio.ref, extracted: blobRef });
-        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, did, blobRef, lexiconRecord.audio.size), 0);
-    } else {
-        // Legacy embed logic
-        let fileEmbed = null;
-        const embed = record.embed;
-        if (embed && embed.$type === 'app.bsky.embed.file') fileEmbed = embed;
-        else if (embed && embed.$type === 'app.bsky.embed.recordWithMedia' && embed.media && embed.media.$type === 'app.bsky.embed.file') fileEmbed = embed.media;
-        if (fileEmbed && fileEmbed.file && fileEmbed.file.mimeType.startsWith('audio/')) {
-            const blobRef = extractBlobRef(fileEmbed.file.ref);
-            setTimeout(() => setupLazyWaveSurfer(audioWaveformId, did, blobRef, fileEmbed.file.size), 0);
-        }
+    if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref && lexiconRecord.audio.ref.$link) {
+        const audioCid = lexiconRecord.audio.ref.$link;
+        setTimeout(() => setupLazyWaveSurfer(audioWaveformId, did, audioCid, lexiconRecord.audio.size), 0);
+    } else if (lexiconRecord && lexiconRecord.audio) {
+        console.error('[renderSinglePostView] Missing audioCid (.ref.$link) for lexiconRecord', { lexiconRecord });
     }
     // After rendering the single post, render comments using the same logic as the feed
     // Fetch the thread for comments (if not already available)

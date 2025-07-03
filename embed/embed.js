@@ -85,6 +85,16 @@ async function incrementLexiconPlayCountEmbed(did, rkey) {
   }
 }
 
+// --- Utility: Robustly extract blob ref string from ATProto blob objects ---
+function extractBlobRef(ref) {
+    if (!ref) return '';
+    if (typeof ref === 'object' && ref.$link) return ref.$link;
+    if (typeof ref === 'string') return ref;
+    // If we get here, log and return empty string
+    console.error('[extractBlobRef] Invalid blob ref structure:', ref);
+    return '';
+}
+
 // Patch renderMinimalPlayer to show lexicon play count if available
 function renderMinimalPlayer(post, { lazy = false, isLargeFile = false, lexiconRecord = null, rkey = null, did = null, artworkOverride = null, postUri = null } = {}) {
   let artworkUrl = artworkOverride || extractArtworkUrl(post);
@@ -197,24 +207,18 @@ async function renderEmbedPlayer(uri) {
     let title = '';
     let artist = '';
     if (lexiconRecord) {
-      if (lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-        let blobRef = lexiconRecord.artwork.ref;
-        if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
-          blobRef = blobRef.$link;
-        } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
-          blobRef = blobRef.toString();
-        }
-        artworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(blobRef)}`;
+      let artworkCid = extractBlobRef(lexiconRecord.artwork?.ref);
+      if (artworkCid) {
+        artworkUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(userDid)}&cid=${encodeURIComponent(artworkCid)}`;
+      } else if (lexiconRecord.artwork) {
+        console.error('[renderEmbedPlayer] Missing artworkCid (.ref.$link) for lexiconRecord', { lexiconRecord });
       }
-      if (lexiconRecord.audio && lexiconRecord.audio.ref) {
-        let blobRef = lexiconRecord.audio.ref;
-        if (blobRef && typeof blobRef === 'object' && blobRef.$link) {
-          blobRef = blobRef.$link;
-        } else if (typeof blobRef === 'object' && typeof blobRef.toString === 'function' && blobRef.toString() !== '[object Object]') {
-          blobRef = blobRef.toString();
-        }
-        audioBlobRef = blobRef;
+      let audioCid = extractBlobRef(lexiconRecord.audio?.ref);
+      if (audioCid) {
+        audioBlobRef = audioCid;
         audioSize = lexiconRecord.audio.size;
+      } else if (lexiconRecord.audio) {
+        console.error('[renderEmbedPlayer] Missing audioCid (.ref.$link) for lexiconRecord', { lexiconRecord });
       }
       title = lexiconRecord.metadata?.title || lexiconRecord.text || '';
       artist = lexiconRecord.metadata?.artist || post.author.displayName || post.author.handle || '';

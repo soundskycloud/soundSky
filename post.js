@@ -5,9 +5,12 @@ import { formatRelativeTime } from './utils.js';
 export async function renderPostCard({ post, user, audioHtml, options = {}, lexiconRecord = null, soundskyRkey = null, playCount = null }) {
     // --- Artwork ---
     let coverUrl = '';
-    if (lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref) {
-        const blobRef = lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.toString ? lexiconRecord.artwork.ref.toString() : lexiconRecord.artwork.ref;
-        coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(blobRef)}`;
+    let artworkCid = lexiconRecord && lexiconRecord.artwork && lexiconRecord.artwork.ref && lexiconRecord.artwork.ref.$link ? lexiconRecord.artwork.ref.$link : '';
+    if (artworkCid) {
+        console.debug('[renderPostCard] Using artworkCid:', artworkCid);
+        coverUrl = `https://bsky.social/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(user.did)}&cid=${encodeURIComponent(artworkCid)}`;
+    } else if (lexiconRecord && lexiconRecord.artwork) {
+        console.error('[renderPostCard] Missing artworkCid (.ref.$link) for lexiconRecord', { lexiconRecord });
     }
     // --- Title and Artist ---
     let title = '';
@@ -21,11 +24,14 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
     }
     // --- Audio ---
     let playBtnHtml = '';
-    if (lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref) {
-        const blobRef = lexiconRecord.audio.ref && lexiconRecord.audio.ref.toString ? lexiconRecord.audio.ref.toString() : lexiconRecord.audio.ref;
-        playBtnHtml = `<button class="soundsky-play-btn" data-did="${user.did}" data-blob="${blobRef}" title="Play">
+    let audioCid = lexiconRecord && lexiconRecord.audio && lexiconRecord.audio.ref && lexiconRecord.audio.ref.$link ? lexiconRecord.audio.ref.$link : '';
+    if (audioCid) {
+        console.debug('[renderPostCard] Using audioCid:', audioCid);
+        playBtnHtml = `<button class="soundsky-play-btn" data-did="${user.did}" data-blob="${audioCid}" title="Play">
             <i class="fas fa-play"></i>
         </button>`;
+    } else if (lexiconRecord && lexiconRecord.audio) {
+        console.error('[renderPostCard] Missing audioCid (.ref.$link) for lexiconRecord', { lexiconRecord });
     }
     // --- Play Count (for lexicon posts) ---
     let playCountHtml = '';

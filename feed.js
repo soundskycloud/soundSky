@@ -6,6 +6,16 @@
 import { loadBanlist, sha256Hex } from './utils.js';
 import { fetchSoundSkyRecord, fetchSoundSkyPosts } from './soundsky-lexicon.js';
 
+// --- Utility: Robustly extract blob ref string from ATProto blob objects ---
+function extractBlobRef(ref) {
+    if (!ref) return '';
+    if (typeof ref === 'object' && ref.$link) return ref.$link;
+    if (typeof ref === 'string') return ref;
+    // If we get here, log and return empty string
+    console.error('[extractBlobRef] Invalid blob ref structure:', ref);
+    return '';
+}
+
 export function setActiveNav(id) {
     document.querySelectorAll('#nav-feed, #nav-discover', '#nav-likes').forEach(el => {
         el.classList.remove('bg-blue-500', 'text-white');
@@ -22,6 +32,15 @@ export async function appendAudioPostCard(record, feedGen, agent, renderPostCard
     // Banlist check: skip if author is banned
     const handle = record.metadata?.artist?.toLowerCase() || '';
     if (handle && banlist && banlist.has(await sha256Hex(handle))) return;
+    // Strictly extract audio and artwork CIDs
+    let audioCid = extractBlobRef(record.audio?.ref);
+    if (!audioCid && record.audio) {
+        console.error('[appendAudioPostCard] Missing audioCid (.ref.$link) for record', { record });
+    }
+    let artworkCid = extractBlobRef(record.artwork?.ref);
+    if (!artworkCid && record.artwork) {
+        console.error('[appendAudioPostCard] Missing artworkCid (.ref.$link) for record', { record });
+    }
     // Render post card (all features preserved)
     const cardHtml = await renderPostCard({
         post: { uri: record.uri, cid: record.cid, record, author: { did: record.did || record.repo } },
@@ -30,7 +49,9 @@ export async function appendAudioPostCard(record, feedGen, agent, renderPostCard
         options: { lazyWaveformId: `waveform-${record.cid || record.rkey}` },
         lexiconRecord: record.record || record,
         soundskyRkey: record.rkey,
-        playCount: record.stats?.plays || 0
+        playCount: record.stats?.plays || 0,
+        audioCid,
+        artworkCid
     });
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = cardHtml;
