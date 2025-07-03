@@ -12,7 +12,6 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
     // Create WaveSurfer instance
     const wavesurfer = window.WaveSurfer.create({
         container: container,
-        backend: 'MediaElement',
         height: 96,
         normalize: true,
         responsive: true,
@@ -31,10 +30,6 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
         barAlign: 'bottom',
     });
     wavesurfer.load(audioBlobUrl);
-    // Auto-play when ready
-    wavesurfer.on('ready', () => {
-        wavesurfer.play();
-    });
     // Set global volume
     let globalVolume = 1.0;
     if (localStorage.getItem('soundskyVolume')) {

@@ -1506,6 +1506,7 @@ feedContainer.addEventListener('click', async function(e) {
     const playBtn = e.target.closest('.soundsky-play-btn');
     if (playBtn) {
         e.preventDefault();
+        e.stopPropagation(); // Prevent event bubbling to waveform container
         // Pause all other players
         if (window.soundskyWavesurfers) {
             Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.pause && ws.pause(); } catch {} });
@@ -1553,6 +1554,12 @@ feedContainer.addEventListener('click', async function(e) {
                 return;
             }
             initWaveSurfer(waveformId, audioUrl);
+            // Ensure playback starts after waveform is ready
+            setTimeout(() => {
+                if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
+                    try { window.soundskyWavesurfers[waveformId].play(); } catch (err) { console.error('WaveSurfer play() failed:', err); }
+                }
+            }, 200);
             // Increment play count using did and rkey
             incrementLexiconPlayCount({ did, rkey });
         } catch (err) {
