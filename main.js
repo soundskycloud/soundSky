@@ -1553,6 +1553,34 @@ feedContainer.addEventListener('click', async function(e) {
                 return;
             }
             initWaveSurfer(waveformId, audioUrl);
+            // Visually update play button to pause
+            if (playBtn) {
+                playBtn.classList.add('playing');
+                const icon = playBtn.querySelector('i');
+                if (icon) { icon.classList.remove('fa-play'); icon.classList.add('fa-pause'); }
+            }
+            // Start playback immediately
+            setTimeout(() => {
+                const ws = window.soundskyWavesurfers[waveformId];
+                if (ws && !ws.isPlaying()) ws.play();
+                // Listen for pause/finish to update icon
+                if (ws) {
+                    ws.on('pause', () => {
+                        if (playBtn) {
+                            playBtn.classList.remove('playing');
+                            const icon = playBtn.querySelector('i');
+                            if (icon) { icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); }
+                        }
+                    });
+                    ws.on('finish', () => {
+                        if (playBtn) {
+                            playBtn.classList.remove('playing');
+                            const icon = playBtn.querySelector('i');
+                            if (icon) { icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); }
+                        }
+                    });
+                }
+            }, 100);
             // Increment play count using did and rkey
             incrementLexiconPlayCount({ did, rkey });
         } catch (err) {
