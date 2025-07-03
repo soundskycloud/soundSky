@@ -305,6 +305,26 @@ async function appendAudioPostCard(audioPost, feedGen) {
     if (feedGen !== _soundskyFeedGeneration) return;
     let cardHtml;
     try {
+        // Debug: Log the raw objects and extracted fields
+        let debugTitle = '';
+        let debugArtist = '';
+        if (lexiconRecord && lexiconRecord.metadata) {
+            debugTitle = lexiconRecord.metadata.title || '';
+            debugArtist = lexiconRecord.metadata.artist || '';
+        } else {
+            debugTitle = (post.record?.text || '').split('\n')[0].slice(0, 40) || 'Untitled';
+            debugArtist = user.displayName || user.handle || '';
+        }
+        console.debug('[appendAudioPostCard] Field mapping:', {
+            post,
+            user,
+            lexiconRecord,
+            debugTitle,
+            debugArtist,
+            postKeys: Object.keys(post),
+            lexiconRecordKeys: lexiconRecord ? Object.keys(lexiconRecord) : null,
+            metadata: lexiconRecord ? lexiconRecord.metadata : null
+        });
         cardHtml = await renderPostCard({ post, user, audioHtml, options: { lazyWaveformId: audioWaveformId }, lexiconRecord, playCount });
     } catch (err) {
         console.error('[appendAudioPostCard] Failed to render post card:', err, { post, user, lexiconRecord });
