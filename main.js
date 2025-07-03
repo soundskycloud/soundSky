@@ -1523,6 +1523,7 @@ feedContainer.addEventListener('click', async function(e) {
             const parts = postUri.replace('at://', '').split('/');
             if (parts.length === 3) rkey = parts[2];
         }
+        console.debug('[WaveformPlay] did:', did, 'blobRef:', blobRef, 'waveformId:', waveformId, 'rkey:', rkey, 'waveformDiv:', waveformDiv);
         if (!did || !blobRef || !waveformId || !rkey) {
             console.error('[WaveformPlay] Missing did/blobRef/waveformId/rkey', { did, blobRef, waveformId, rkey });
             return;
@@ -1534,6 +1535,23 @@ feedContainer.addEventListener('click', async function(e) {
         // Fetch audio blob URL and init WaveSurfer
         try {
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
+            console.debug('[WaveformPlay] audioUrl:', audioUrl);
+            // Test the Blob URL in a native audio element before WaveSurfer
+            const testAudio = document.createElement('audio');
+            testAudio.src = audioUrl;
+            let canPlay = false;
+            try {
+                await testAudio.play();
+                canPlay = true;
+                testAudio.pause();
+            } catch (err) {
+                canPlay = false;
+                console.error('[WaveformPlay] Native audio test failed for Blob URL:', err, { audioUrl });
+            }
+            if (!canPlay) {
+                alert('Failed to load audio: Native audio element could not play the Blob URL.');
+                return;
+            }
             initWaveSurfer(waveformId, audioUrl);
             // Increment play count using did and rkey
             incrementLexiconPlayCount({ did, rkey });
