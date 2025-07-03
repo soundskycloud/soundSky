@@ -1,8 +1,13 @@
 // Audio player module for SoundSky
 
-export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
+export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize, _attempt = 0) {
     const container = document.getElementById(audioWaveformId);
     if (!container || !audioBlobUrl) return;
+    // Wait until container is visible and has non-zero size
+    if ((container.offsetWidth === 0 || container.offsetHeight === 0) && _attempt < 10) {
+        setTimeout(() => initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize, _attempt + 1), 60);
+        return;
+    }
     // Fallback for huge files: use a hidden <audio> element instead of WaveSurfer
     if (blobSize && blobSize > 10 * 1024 * 1024) {
         console.warn('File too large for WaveSurfer, using fallback audio player:', blobSize);
