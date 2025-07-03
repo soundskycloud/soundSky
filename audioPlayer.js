@@ -1,6 +1,13 @@
 // Audio player module for SoundSky
 
-export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize, _attempt = 0) {
+// Helper: fetch audio as ArrayBuffer from Blob URL
+async function fetchArrayBufferFromBlobUrl(blobUrl) {
+    const resp = await fetch(blobUrl);
+    if (!resp.ok) throw new Error('Failed to fetch audio for waveform');
+    return await resp.arrayBuffer();
+}
+
+export async function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize, _attempt = 0) {
     const container = document.getElementById(audioWaveformId);
     if (!container || !audioBlobUrl) return;
     // Wait until container is visible and has non-zero size
@@ -74,7 +81,7 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize, _attempt
             }
             const wavesurfer = window.WaveSurfer.create({
                 container: `#${audioWaveformId}`,
-                backend: 'MediaElement',
+                backend: 'WebAudio', // Use WebAudio for waveform rendering
                 height: 96,
                 normalize: false,
                 responsive: true,
@@ -92,7 +99,9 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize, _attempt
                 barRadius: 6,
                 barAlign: 'bottom',
             });
-            wavesurfer.load(audioBlobUrl);
+            // --- NEW: Load as ArrayBuffer for WebAudio backend ---
+            const arrayBuffer = await fetchArrayBufferFromBlobUrl(audioBlobUrl);
+            await wavesurfer.load(arrayBuffer);
             window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
             const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);
             let hasCountedPlay = false;
