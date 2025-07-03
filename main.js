@@ -1,7 +1,8 @@
 import { BskyAgent } from 'https://esm.sh/@atproto/api';
 import { uploadSoundSkyAudio, fetchSoundSkyRecord } from './soundsky-lexicon.js';
 import { loadBanlist, isBannedHandle, sha256Hex, formatRelativeTime, getCurrentPdsUrl } from './utils.js';
-import { renderArtistPage } from './artist.js';
+import { renderArtistPage as importedRenderArtistPage } from './artist.js';
+let renderArtistPage = importedRenderArtistPage;
 import { renderPostCard } from './post.js';
 import { initWaveSurfer, setupLazyWaveSurfer } from './audioPlayer.js';
 import { renderSidebarLikedSongs, fetchAndRenderSidebarLikedSongs } from './sidebar.js';
