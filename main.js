@@ -1507,16 +1507,27 @@ feedContainer.addEventListener('click', async function(e) {
     if (playBtn) {
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling to waveform container
-        // Pause all other players
-        if (window.soundskyWavesurfers) {
-            Object.values(window.soundskyWavesurfers).forEach(ws => { try { ws.pause && ws.pause(); } catch {} });
-        }
-        const did = playBtn.getAttribute('data-did');
-        const blobRef = playBtn.getAttribute('data-blob');
-        // Find the waveform placeholder div
         const postCard = playBtn.closest('.post-card');
         const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
         const waveformId = waveformDiv ? waveformDiv.id : null;
+        if (!waveformId) return;
+        // If WaveSurfer instance exists, just toggle play/pause
+        if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
+            const ws = window.soundskyWavesurfers[waveformId];
+            if (ws.isPlaying()) {
+                ws.pause();
+            } else {
+                // Pause all others
+                Object.entries(window.soundskyWavesurfers).forEach(([id, otherWs]) => {
+                    if (id !== waveformId && otherWs && otherWs.pause) otherWs.pause();
+                });
+                ws.play();
+            }
+            return;
+        }
+        // First play: fetch blob, init WaveSurfer, play
+        const did = playBtn.getAttribute('data-did');
+        const blobRef = playBtn.getAttribute('data-blob');
         // Extract rkey from post URI
         const postUri = postCard ? postCard.getAttribute('data-post-uri') : null;
         let rkey = null;
@@ -1524,8 +1535,7 @@ feedContainer.addEventListener('click', async function(e) {
             const parts = postUri.replace('at://', '').split('/');
             if (parts.length === 3) rkey = parts[2];
         }
-        console.debug('[WaveformPlay] did:', did, 'blobRef:', blobRef, 'waveformId:', waveformId, 'rkey:', rkey, 'waveformDiv:', waveformDiv);
-        if (!did || !blobRef || !waveformId || !rkey) {
+        if (!did || !blobRef || !rkey) {
             console.error('[WaveformPlay] Missing did/blobRef/waveformId/rkey', { did, blobRef, waveformId, rkey });
             return;
         }
@@ -1533,28 +1543,10 @@ feedContainer.addEventListener('click', async function(e) {
         if (waveformDiv) {
             waveformDiv.innerHTML = '';
         }
-        // Fetch audio blob URL and init WaveSurfer
         try {
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
-            console.debug('[WaveformPlay] audioUrl:', audioUrl);
-            // Test the Blob URL in a native audio element before WaveSurfer
-            const testAudio = document.createElement('audio');
-            testAudio.src = audioUrl;
-            let canPlay = false;
-            try {
-                await testAudio.play();
-                canPlay = true;
-                testAudio.pause();
-            } catch (err) {
-                canPlay = false;
-                console.error('[WaveformPlay] Native audio test failed for Blob URL:', err, { audioUrl });
-            }
-            if (!canPlay) {
-                alert('Failed to load audio: Native audio element could not play the Blob URL.');
-                return;
-            }
             initWaveSurfer(waveformId, audioUrl);
-            // Ensure playback starts after waveform is ready
+            // Play after ready
             setTimeout(() => {
                 if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
                     try { window.soundskyWavesurfers[waveformId].play(); } catch (err) { console.error('WaveSurfer play() failed:', err); }
