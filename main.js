@@ -330,7 +330,7 @@ async function appendAudioPostCard(item, feedGen) {
     let cardHtml;
     try {
         cardHtml = await renderPostCard({
-            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: record.cid, record, author: user },
+            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: record.cid || item.rkey, record, author: user },
             user,
             audioHtml,
             options: { lazyWaveformId: audioWaveformId },
@@ -1174,6 +1174,7 @@ async function renderLikedPostsAlbumView() {
     document.querySelectorAll('.album-cover-btn').forEach(btn => {
         btn.addEventListener('click', async function(e) {
             e.preventDefault();
+            destroyAllWaveSurfers();
             const did = btn.getAttribute('data-did');
             const blobRef = btn.getAttribute('data-blob');
             if (!did || !blobRef) return;
@@ -1502,8 +1503,6 @@ function renderThreadedComments(replies, level = 0) {
 }
 
 // --- Delegated click handler for waveform play buttons in feed/discovery ---
-// REMOVE the following block entirely (no delegated click handler for .soundsky-play-btn):
-/*
 feedContainer.addEventListener('click', async function(e) {
     const playBtn = e.target.closest('.soundsky-play-btn');
     if (playBtn) {
@@ -1513,6 +1512,8 @@ feedContainer.addEventListener('click', async function(e) {
         const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
         const waveformId = waveformDiv ? waveformDiv.id : null;
         if (!waveformId) return;
+        // Always destroy all other players before starting a new one
+        destroyAllWaveSurfers();
         // If WaveSurfer instance exists, just toggle play/pause
         if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
             const ws = window.soundskyWavesurfers[waveformId];
@@ -1561,4 +1562,3 @@ feedContainer.addEventListener('click', async function(e) {
         }
     }
 });
-*/
