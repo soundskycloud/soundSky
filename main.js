@@ -405,7 +405,7 @@ async function fetchGlobalSocialCount({ postUri, action }) {
     let count = 0;
     let cursor = null;
     do {
-        let url = `https://ufos-api.microcosm.blue/records?collection=cloud.soundsky.audio/social`;
+        let url = `https://ufos-api.microcosm.blue/records?collection=cloud.soundsky.audio.social`;
         if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
         const resp = await fetch(url);
         if (!resp.ok) break;
@@ -1642,7 +1642,7 @@ async function createLikeRecord(postUri) {
     };
     const res = await agent.api.com.atproto.repo.createRecord({
         repo: agent.session.did,
-        collection: 'cloud.soundsky.audio/social',
+        collection: 'cloud.soundsky.audio.social',
         record,
     });
     return res.data;
@@ -1651,7 +1651,7 @@ async function findLikeRecord(postUri) {
     if (!agent || !agent.session || !postUri) return null;
     const res = await agent.api.com.atproto.repo.listRecords({
         repo: agent.session.did,
-        collection: 'cloud.soundsky.audio/social',
+        collection: 'cloud.soundsky.audio.social',
         limit: 100,
     });
     if (!res.data || !Array.isArray(res.data.records)) return null;
@@ -1661,7 +1661,7 @@ async function deleteLikeRecord(rkey) {
     if (!agent || !agent.session || !rkey) throw new Error('Not logged in or missing rkey');
     await agent.api.com.atproto.repo.deleteRecord({
         repo: agent.session.did,
-        collection: 'cloud.soundsky.audio/social',
+        collection: 'cloud.soundsky.audio.social',
         rkey,
     });
 }
@@ -1712,7 +1712,7 @@ async function createPlayRecord(postUri) {
     };
     const res = await agent.api.com.atproto.repo.createRecord({
         repo: agent.session.did,
-        collection: 'cloud.soundsky.audio/social',
+        collection: 'cloud.soundsky.audio.social',
         record,
     });
     return res.data;
@@ -1721,7 +1721,7 @@ async function findPlayRecords(postUri) {
     if (!agent || !agent.session || !postUri) return [];
     const res = await agent.api.com.atproto.repo.listRecords({
         repo: agent.session.did,
-        collection: 'cloud.soundsky.audio/social',
+        collection: 'cloud.soundsky.audio.social',
         limit: 100,
     });
     if (!res.data || !Array.isArray(res.data.records)) return [];
