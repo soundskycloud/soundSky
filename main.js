@@ -534,9 +534,28 @@ async function incrementLexiconPlayCount(post) {
         const did = uriParts[0];
         const collection = uriParts[1];
         const rkey = uriParts[2];
-        console.debug('[incrementLexiconPlayCount] did/collection/rkey:', { did, collection, rkey });
-        // Fetch the latest record
-        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
+        // Resolve the author's PDS endpoint
+        let pdsEndpoint = null;
+        try {
+            const plcRes = await fetch(`https://plc.directory/${did}`);
+            if (plcRes.ok) {
+                const plcData = await plcRes.json();
+                const found = plcData.service.find(s => s.id === '#atproto_pds');
+                if (found) pdsEndpoint = found.serviceEndpoint.replace(/\/$/, '');
+            }
+        } catch (e) { /* fallback below */ }
+        if (!pdsEndpoint) {
+            console.error('[incrementLexiconPlayCount] Could not resolve PDS for DID', did);
+            return;
+        }
+        // Create a temporary agent for the author's PDS
+        const tempAgent = new BskyAgent({ service: pdsEndpoint });
+        // Use the current session for auth if the DID matches, else unauthenticated
+        if (agent && agent.session && agent.session.did === did) {
+            tempAgent.session = agent.session;
+        }
+        // Fetch the latest record from the author's PDS
+        const res = await tempAgent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
         console.debug('[incrementLexiconPlayCount] getRecord result:', res);
         const record = res.data.value;
         // Ensure stats exists and increment
@@ -544,7 +563,7 @@ async function incrementLexiconPlayCount(post) {
         if (typeof record.stats.plays !== 'number') record.stats.plays = 0;
         record.stats.plays++;
         // Write back the updated record
-        const putRes = await agent.api.com.atproto.repo.putRecord({
+        const putRes = await tempAgent.api.com.atproto.repo.putRecord({
             repo: did,
             collection,
             rkey,
