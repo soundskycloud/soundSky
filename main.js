@@ -528,7 +528,7 @@ async function incrementLexiconPlayCount(post) {
             record
         });
         // Update the UI immediately
-        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .flex.items-center.text-gray-700 span.ml-1`);
+        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .soundsky-playcount-row span.ml-1`);
         playCountEls.forEach(el => {
             el.textContent = record.stats.plays;
         });
@@ -1515,7 +1515,6 @@ feedContainer.addEventListener('click', async function(e) {
         const postCard = playBtn.closest('.post-card');
         const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
         const waveformId = waveformDiv ? waveformDiv.id : null;
-        console.debug('[WaveformPlay] waveformDiv:', waveformDiv, 'waveformId:', waveformId, 'postCard:', postCard);
         if (!waveformId) return;
         // If WaveSurfer instance exists, just trigger the playBtn's own click handler
         if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
@@ -1525,15 +1524,11 @@ feedContainer.addEventListener('click', async function(e) {
         // First play: fetch blob, init WaveSurfer, then trigger playBtn click
         const did = playBtn.getAttribute('data-did');
         const blobRef = playBtn.getAttribute('data-blob');
-        // Extract rkey from post URI
+        // Extract post object for incrementLexiconPlayCount
         const postUri = postCard ? postCard.getAttribute('data-post-uri') : null;
-        let rkey = null;
-        if (postUri) {
-            const parts = postUri.replace('at://', '').split('/');
-            if (parts.length === 3) rkey = parts[2];
-        }
-        if (!did || !blobRef || !rkey) {
-            console.error('[WaveformPlay] Missing did/blobRef/waveformId/rkey', { did, blobRef, waveformId, rkey });
+        const postObj = { uri: postUri };
+        if (!did || !blobRef || !postUri) {
+            console.error('[WaveformPlay] Missing did/blobRef/waveformId/postUri', { did, blobRef, waveformId, postUri });
             return;
         }
         // Remove placeholder content
@@ -1541,25 +1536,16 @@ feedContainer.addEventListener('click', async function(e) {
             waveformDiv.innerHTML = '';
         }
         try {
-            console.debug('[WaveformPlay] Calling fetchAudioBlobUrl and initWaveSurfer', { waveformId, did, blobRef });
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
-            const blobSize = playBtn._soundskyLexiconRecord && playBtn._soundskyLexiconRecord.audio && playBtn._soundskyLexiconRecord.audio.size;
-            console.debug('[WaveformPlay] Calling initWaveSurfer with', { waveformId, audioUrl, blobSize });
-            initWaveSurfer(waveformId, audioUrl, blobSize);
-            // After a short delay, re-select the playBtn and trigger its click handler
+            initWaveSurfer(waveformId, audioUrl);
+            // After a short delay, trigger the playBtn's own click handler
             setTimeout(() => {
-                const btn = postCard ? postCard.querySelector('.soundsky-play-btn') : null;
-                console.debug('[WaveformPlay] Triggering playBtn.click()', { btn });
-                if (btn) btn.click();
-            }, 250);
-            // Increment play count using the playBtn's attached post object
-            if (playBtn._soundskyPost) {
-                incrementLexiconPlayCount(playBtn._soundskyPost);
-            } else {
-                console.warn('[WaveformPlay] No _soundskyPost found on playBtn', playBtn);
-            }
+                playBtn.click();
+            }, 100);
+            // Increment play count using post object
+            incrementLexiconPlayCount(postObj);
         } catch (err) {
-            console.error('Failed to load audio:', err);
+            alert('Failed to load audio: ' + (err.message || err));
         }
     }
 });
