@@ -188,6 +188,38 @@
           }
         }
       }
+    },
+    "social": {
+      "type": "record",
+      "description": "A social action (like, play, follow) on a track or user",
+      "key": "soid",
+      "record": {
+        "type": "object",
+        "required": ["action", "subject", "createdAt"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Type of social action",
+            "enum": ["like", "play", "follow"]
+          },
+          "subject": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "URI of the track or user this action targets"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when the action was performed"
+          },
+          "extra": {
+            "type": "object",
+            "description": "Optional extra data for the action",
+            "required": false,
+            "properties": {}
+          }
+        }
+      }
     }
   }
 } 

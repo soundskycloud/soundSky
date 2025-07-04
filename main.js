@@ -400,7 +400,24 @@ async function appendAudioPostCard(item, feedGen) {
     }
 }
 
-// Update fetchSoundskyFeed to render each card as soon as it's ready
+// --- Utility: Fetch and count global likes/plays for a post using UFOs-API ---
+async function fetchGlobalSocialCount({ postUri, action }) {
+    let count = 0;
+    let cursor = null;
+    do {
+        let url = `https://ufos-api.microcosm.blue/records?collection=cloud.soundsky.audio/social`;
+        if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) break;
+        const records = await resp.json();
+        for (const r of records) {
+            if (r.record && r.record.action === action && r.record.subject === postUri) count++;
+        }
+        cursor = records.cursor || null;
+    } while (cursor);
+    return count;
+}
+// --- Patch feed sorting: sort posts by createdAt descending ---
 async function fetchSoundskyFeed({ append = false, mode = 'discover', q = false } = {}) {
     console.debug('[fetchSoundskyFeed] called with', { append, mode, q });
     destroyAllWaveSurfers();
@@ -424,6 +441,8 @@ async function fetchSoundskyFeed({ append = false, mode = 'discover', q = false 
         if (!resp.ok) throw new Error('Failed to fetch SoundSky records');
         records = await resp.json();
         if (!Array.isArray(records)) records = [];
+        // --- Sort by createdAt descending ---
+        records.sort((a, b) => new Date(b.record.createdAt) - new Date(a.record.createdAt));
         if (records.length > 0) {
             loadedAudioPosts = append ? loadedAudioPosts.concat(records) : records;
             for (const item of records) {
@@ -432,8 +451,8 @@ async function fetchSoundskyFeed({ append = false, mode = 'discover', q = false 
                 } catch (err) {
                     console.error('[fetchSoundskyFeed] Failed to append audio post card:', err, { item });
                 }
-                }
-            } else {
+            }
+        } else {
             feedContainer.innerHTML = `<div class="text-center text-gray-500 py-8">No music found.</div>`;
         }
         // TODO: Handle pagination if the API supports it
@@ -676,7 +695,7 @@ feedContainer.addEventListener('click', async function(e) {
     // Like button
     const likeBtn = e.target.closest('.like-post-btn');
     if (likeBtn && likeBtn.getAttribute('data-uri')) {
-        const uri = likeBtn.getAttribute('data-uri');
+        const postUri = likeBtn.getAttribute('data-uri');
         const cid = likeBtn.getAttribute('data-cid');
         const liked = likeBtn.getAttribute('data-liked') === 'true';
         const likeUri = likeBtn.getAttribute('data-likeuri');
@@ -687,13 +706,13 @@ feedContainer.addEventListener('click', async function(e) {
         }
         try {
             if (!liked) {
-                await agent.like(uri, cid);
+                await agent.like(postUri, cid);
                 likeBtn.setAttribute('data-liked', 'true');
                 likeBtn.classList.remove('text-gray-500', 'hover:text-blue-500');
                 likeBtn.classList.add('text-blue-500');
                 likeBtn.querySelector('i').classList.remove('far');
                 likeBtn.querySelector('i').classList.add('fas');
-                countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+                if (countSpan) countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
             } else {
                 if (likeUri) {
                     await agent.deleteLike(likeUri);
@@ -702,7 +721,7 @@ feedContainer.addEventListener('click', async function(e) {
                     likeBtn.classList.add('text-gray-500', 'hover:text-blue-500');
                     likeBtn.querySelector('i').classList.remove('fas');
                     likeBtn.querySelector('i').classList.add('far');
-                    countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+                    if (countSpan) countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
                 } else {
                     alert('Could not find like record URI to unlike.');
                 }
@@ -1612,3 +1631,110 @@ feedContainer.addEventListener('click', async function(e) {
         }
     }
 });
+
+// --- Utility: Social Actions (Like/Unlike) for Lexicon-Only ---
+async function createLikeRecord(postUri) {
+    if (!agent || !agent.session || !postUri) throw new Error('Not logged in or missing postUri');
+    const record = {
+        action: 'like',
+        subject: postUri,
+        createdAt: new Date().toISOString(),
+    };
+    const res = await agent.api.com.atproto.repo.createRecord({
+        repo: agent.session.did,
+        collection: 'cloud.soundsky.audio/social',
+        record,
+    });
+    return res.data;
+}
+async function findLikeRecord(postUri) {
+    if (!agent || !agent.session || !postUri) return null;
+    const res = await agent.api.com.atproto.repo.listRecords({
+        repo: agent.session.did,
+        collection: 'cloud.soundsky.audio/social',
+        limit: 100,
+    });
+    if (!res.data || !Array.isArray(res.data.records)) return null;
+    return res.data.records.find(r => r.value && r.value.action === 'like' && r.value.subject === postUri) || null;
+}
+async function deleteLikeRecord(rkey) {
+    if (!agent || !agent.session || !rkey) throw new Error('Not logged in or missing rkey');
+    await agent.api.com.atproto.repo.deleteRecord({
+        repo: agent.session.did,
+        collection: 'cloud.soundsky.audio/social',
+        rkey,
+    });
+}
+// Patch like button event delegation to use new logic
+feedContainer.addEventListener('click', async function(e) {
+    const likeBtn = e.target.closest('.like-post-btn');
+    if (likeBtn && likeBtn.getAttribute('data-uri')) {
+        const postUri = likeBtn.getAttribute('data-uri');
+        const countSpan = likeBtn.querySelector('span');
+        likeBtn.disabled = true;
+        try {
+            // Check if already liked
+            const existing = await findLikeRecord(postUri);
+            if (!existing) {
+                await createLikeRecord(postUri);
+                likeBtn.setAttribute('data-liked', 'true');
+                likeBtn.classList.remove('text-gray-500', 'hover:text-blue-500');
+                likeBtn.classList.add('text-blue-500');
+                likeBtn.querySelector('i').classList.remove('far');
+                likeBtn.querySelector('i').classList.add('fas');
+                if (countSpan) countSpan.textContent = (parseInt(countSpan.textContent, 10) + 1).toString();
+            } else {
+                await deleteLikeRecord(existing.rkey);
+                likeBtn.setAttribute('data-liked', 'false');
+                likeBtn.classList.remove('text-blue-500');
+                likeBtn.classList.add('text-gray-500', 'hover:text-blue-500');
+                likeBtn.querySelector('i').classList.remove('fas');
+                likeBtn.querySelector('i').classList.add('far');
+                if (countSpan) countSpan.textContent = (parseInt(countSpan.textContent, 10) - 1).toString();
+            }
+        } catch (err) {
+            alert('Failed to like/unlike post: ' + (err.message || err));
+        } finally {
+            likeBtn.disabled = false;
+        }
+        return;
+    }
+    // ... existing code ...
+});
+
+// --- Utility: Social Actions (Play) for Lexicon-Only ---
+async function createPlayRecord(postUri) {
+    if (!agent || !agent.session || !postUri) throw new Error('Not logged in or missing postUri');
+    const record = {
+        action: 'play',
+        subject: postUri,
+        createdAt: new Date().toISOString(),
+    };
+    const res = await agent.api.com.atproto.repo.createRecord({
+        repo: agent.session.did,
+        collection: 'cloud.soundsky.audio/social',
+        record,
+    });
+    return res.data;
+}
+async function findPlayRecords(postUri) {
+    if (!agent || !agent.session || !postUri) return [];
+    const res = await agent.api.com.atproto.repo.listRecords({
+        repo: agent.session.did,
+        collection: 'cloud.soundsky.audio/social',
+        limit: 100,
+    });
+    if (!res.data || !Array.isArray(res.data.records)) return [];
+    return res.data.records.filter(r => r.value && r.value.action === 'play' && r.value.subject === postUri);
+}
+// Patch play logic to use new play record
+window.incrementLexiconPlayCount = async function(post) {
+    if (!post || !post.uri) return;
+    try {
+        await createPlayRecord(post.uri);
+        // Optionally, update the UI for the current user (not global count)
+        // You may want to update the play count display here if you wish
+    } catch (err) {
+        console.error('Failed to record play:', err);
+    }
+};
