@@ -527,8 +527,8 @@ async function incrementLexiconPlayCount(post) {
             rkey,
             record
         });
-        // Update the UI immediately
-        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .soundsky-playcount-row span.ml-1`);
+        // Update the UI immediately (match old selector)
+        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .flex.items-center.text-gray-700 span.ml-1`);
         playCountEls.forEach(el => {
             el.textContent = record.stats.plays;
         });
