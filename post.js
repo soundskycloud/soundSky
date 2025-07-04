@@ -110,12 +110,25 @@ export async function renderPostCard({ post, user, audioHtml, options = {}, lexi
         }
     }
     // --- Social Buttons ---
-    const likeCount = post.likeCount || 0;
-    const liked = post.viewer && post.viewer.like;
+    let likeCount = post.likeCount || 0;
+    let liked = false;
+    let likeRkey = null;
+    // Lexicon-only like state
+    if (lexiconRecord && typeof window.findLikeRecord === 'function' && window.agent && window.agent.session) {
+        const found = await window.findLikeRecord(post.uri);
+        if (found) {
+            liked = true;
+            likeRkey = found.rkey;
+        }
+        // Optionally, fetch global like count
+        if (typeof window.fetchGlobalSocialCount === 'function') {
+            likeCount = await window.fetchGlobalSocialCount({ postUri: post.uri, action: 'like' });
+        }
+    }
     const reposted = post.viewer && post.viewer.repost;
     const repostCount = post.repostCount || 0;
     const commentCount = post.replyCount || 0;
-    const likeBtnHtml = `<button class=\"like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-liked=\"${!!liked}\" data-likeuri=\"${liked ? liked : ''}\"><i class=\"${liked ? 'fas' : 'far'} fa-heart\"></i><span>${likeCount}</span></button>`;
+    const likeBtnHtml = `<button class="like-post-btn flex items-center space-x-1 text-sm ${liked ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}" data-uri="${post.uri}" data-liked="${liked}" data-likerkey="${likeRkey || ''}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i><span>${likeCount}</span></button>`;
     const repostBtnHtml = `<button class=\"repost-post-btn flex items-center space-x-1 text-sm ${reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'}\" data-uri=\"${post.uri}\" data-cid=\"${post.cid}\" data-reposted=\"${!!reposted}\" data-reposturi=\"${reposted ? reposted : ''}\"><i class=\"fa fa-retweet\"></i><span>${repostCount}</span></button>`;
     const commentBtnHtml = `<button class=\"comment-post-btn flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-500\" data-post-uri=\"${post.uri}\"><i class=\"fa fa-comment\"></i><span>${commentCount}</span></button>`;
     // --- Share button for embed link ---
