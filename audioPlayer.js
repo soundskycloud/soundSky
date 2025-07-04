@@ -2,6 +2,12 @@
 
 export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
     const container = document.getElementById(audioWaveformId);
+    console.debug('[initWaveSurfer] called', { audioWaveformId, audioBlobUrl, blobSize, container });
+    if (container) {
+        console.debug('[initWaveSurfer] container size', { width: container.offsetWidth, height: container.offsetHeight, style: container.style.cssText });
+    } else {
+        console.warn('[initWaveSurfer] container not found for', audioWaveformId);
+    }
     if (!container || !audioBlobUrl) return;
     // Fallback for huge files: use a hidden <audio> element instead of WaveSurfer
     if (blobSize && blobSize > 10 * 1024 * 1024) {
@@ -85,6 +91,7 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
                 barRadius: 6,
                 barAlign: 'bottom',
             });
+            console.debug('[initWaveSurfer] WaveSurfer instance created', wavesurfer);
             wavesurfer.load(audioBlobUrl);
             window.soundskyWavesurfers[audioWaveformId] = wavesurfer;
             const playBtn = document.querySelector(`button[data-waveid="${audioWaveformId}"]`);

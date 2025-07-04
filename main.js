@@ -1507,28 +1507,17 @@ feedContainer.addEventListener('click', async function(e) {
     const playBtn = e.target.closest('.soundsky-play-btn');
     if (playBtn) {
         e.preventDefault();
-        e.stopPropagation(); // Prevent event bubbling to waveform container
+        e.stopPropagation();
         const postCard = playBtn.closest('.post-card');
         const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
         const waveformId = waveformDiv ? waveformDiv.id : null;
         if (!waveformId) return;
-        // Always destroy all other players before starting a new one
-        destroyAllWaveSurfers();
-        // If WaveSurfer instance exists, just toggle play/pause
+        // If WaveSurfer instance exists, just trigger the playBtn's own click handler
         if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
-            const ws = window.soundskyWavesurfers[waveformId];
-            if (ws.isPlaying()) {
-                ws.pause();
-            } else {
-                // Pause all others
-                Object.entries(window.soundskyWavesurfers).forEach(([id, otherWs]) => {
-                    if (id !== waveformId && otherWs && otherWs.pause) otherWs.pause();
-                });
-                ws.play();
-            }
+            playBtn.click();
             return;
         }
-        // First play: fetch blob, init WaveSurfer, play
+        // First play: fetch blob, init WaveSurfer, then trigger playBtn click
         const did = playBtn.getAttribute('data-did');
         const blobRef = playBtn.getAttribute('data-blob');
         // Extract rkey from post URI
@@ -1549,12 +1538,10 @@ feedContainer.addEventListener('click', async function(e) {
         try {
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
             initWaveSurfer(waveformId, audioUrl);
-            // Play after ready
+            // After a short delay, trigger the playBtn's own click handler
             setTimeout(() => {
-                if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
-                    try { window.soundskyWavesurfers[waveformId].play(); } catch (err) { console.error('WaveSurfer play() failed:', err); }
-                }
-            }, 200);
+                playBtn.click();
+            }, 100);
             // Increment play count using did and rkey
             incrementLexiconPlayCount({ did, rkey });
         } catch (err) {
