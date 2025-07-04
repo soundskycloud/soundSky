@@ -560,6 +560,7 @@ async function incrementLexiconPlayCount(post) {
         console.error('Failed to increment play count:', err);
     }
 }
+window.incrementLexiconPlayCount = incrementLexiconPlayCount;
 
 async function getLexiconPlayCount({ post, lexiconRecord, soundskyRkey }) {
     if (!post || !post.uri) return;
