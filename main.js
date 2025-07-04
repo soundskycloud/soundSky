@@ -529,7 +529,11 @@ async function incrementLexiconPlayCount({ did, rkey }) {
             el.textContent = record.stats.plays;
         });
     } catch (err) {
-        console.error('Failed to increment play count:', err);
+        if (err && err.message && err.message.includes('Could not locate record')) {
+            console.warn('[incrementLexiconPlayCount] Record not found on PDS, skipping increment:', { did, rkey });
+        } else {
+            console.error('Failed to increment play count:', err);
+        }
     }
 }
 
@@ -1536,12 +1540,15 @@ feedContainer.addEventListener('click', async function(e) {
             waveformDiv.innerHTML = '';
         }
         try {
+            console.debug('[WaveformPlay] Calling fetchAudioBlobUrl and initWaveSurfer', { waveformId, did, blobRef });
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
             initWaveSurfer(waveformId, audioUrl);
-            // After a short delay, trigger the playBtn's own click handler
+            // After a short delay, re-select the playBtn and trigger its click handler
             setTimeout(() => {
-                playBtn.click();
-            }, 100);
+                const btn = postCard ? postCard.querySelector('.soundsky-play-btn') : null;
+                console.debug('[WaveformPlay] Triggering playBtn.click()', { btn });
+                if (btn) btn.click();
+            }, 250);
             // Increment play count using did and rkey
             incrementLexiconPlayCount({ did, rkey });
         } catch (err) {
