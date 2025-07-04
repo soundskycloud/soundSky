@@ -388,6 +388,16 @@ async function appendAudioPostCard(item, feedGen) {
     }
     attachPostTitleLinkHandlers();
     // Setup lazy loader for lexicon audio (no-op, handled by click now)
+    // After appending the card to the DOM in appendAudioPostCard:
+    const likeBtn = cardEl.querySelector('.like-post-btn');
+    const cid = record.cid;
+    if (likeBtn) {
+        if (cid && typeof cid === 'string' && cid.length > 10) {
+            likeBtn.setAttribute('data-cid', cid);
+        } else {
+            likeBtn.setAttribute('data-cid', '');
+        }
+    }
 }
 
 // Update fetchSoundskyFeed to render each card as soon as it's ready
@@ -671,6 +681,10 @@ feedContainer.addEventListener('click', async function(e) {
         const liked = likeBtn.getAttribute('data-liked') === 'true';
         const likeUri = likeBtn.getAttribute('data-likeuri');
         const countSpan = likeBtn.querySelector('span');
+        if (!cid || typeof cid !== 'string' || cid.length < 10) {
+            alert('Cannot like this post: missing or invalid CID.');
+            return;
+        }
         try {
             if (!liked) {
                 await agent.like(uri, cid);
