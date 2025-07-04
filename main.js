@@ -369,7 +369,7 @@ async function appendAudioPostCard(item, feedGen) {
     feedContainer.appendChild(cardEl);
         const playBtn = cardEl.querySelector('.soundsky-play-btn');
         if (playBtn) {
-        playBtn._soundskyPost = record;
+        playBtn._soundskyPost = { uri: postUri };
         playBtn._soundskyLexiconRecord = record;
         playBtn.setAttribute('data-did', did);
         playBtn.setAttribute('data-blob', audioCid);
@@ -1432,8 +1432,8 @@ async function renderSinglePostView(postUri) {
     if (lexiconRecord) {
         const playBtn = cardEl.querySelector('.soundsky-play-btn');
         if (playBtn) {
-            playBtn._soundskyPost = record;
-            playBtn._soundskyLexiconRecord = lexiconRecord;
+            playBtn._soundskyPost = { uri: postUri };
+            playBtn._soundskyLexiconRecord = record;
         }
         const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
         if (playCountEl) {
