@@ -1515,6 +1515,7 @@ feedContainer.addEventListener('click', async function(e) {
         const postCard = playBtn.closest('.post-card');
         const waveformDiv = postCard ? postCard.querySelector('.wavesurfer.waveform') : null;
         const waveformId = waveformDiv ? waveformDiv.id : null;
+        console.debug('[WaveformPlay] waveformDiv:', waveformDiv, 'waveformId:', waveformId, 'postCard:', postCard);
         if (!waveformId) return;
         // If WaveSurfer instance exists, just trigger the playBtn's own click handler
         if (window.soundskyWavesurfers && window.soundskyWavesurfers[waveformId]) {
