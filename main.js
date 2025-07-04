@@ -305,6 +305,21 @@ async function appendAudioPostCard(item, feedGen) {
         console.warn('[appendAudioPostCard] Skipping record: missing audio blob', { record, item });
         return;
     }
+    // Extract soundskyRkey from tags
+    let soundskyRkey = null;
+    const tags = record.tags;
+    if (tags && Array.isArray(tags)) {
+        for (const tag of tags) {
+            if (typeof tag === 'string' && tag.startsWith('soundskyid=')) {
+                soundskyRkey = tag.split('=')[1];
+                break;
+            }
+        }
+    }
+    // Use soundskyRkey for post.uri if present
+    let postUri = soundskyRkey
+        ? `at://${did}/cloud.soundsky.audio/${soundskyRkey}`
+        : `at://${did}/cloud.soundsky.audio/${item.rkey}`;
     // Debug: Log the raw objects and extracted fields
     const debugTitle = record.metadata?.title || record.text || '';
     const debugArtist = record.metadata?.artist || '';
@@ -325,12 +340,14 @@ async function appendAudioPostCard(item, feedGen) {
         debugArtist,
         audioCid,
         artworkCid,
-        metadata: record.metadata
+        metadata: record.metadata,
+        soundskyRkey,
+        postUri
     });
     let cardHtml;
     try {
         cardHtml = await renderPostCard({
-            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: record.cid || item.rkey, record, author: user },
+            post: { uri: postUri, cid: record.cid || item.rkey, record, author: user },
             user,
             audioHtml,
             options: { lazyWaveformId: audioWaveformId },
@@ -357,6 +374,9 @@ async function appendAudioPostCard(item, feedGen) {
         playBtn.setAttribute('data-did', did);
         playBtn.setAttribute('data-blob', audioCid);
         playBtn.setAttribute('data-waveform-id', audioWaveformId);
+        // Store postUri and soundskyRkey for use in play handler
+        playBtn.setAttribute('data-post-uri', postUri);
+        if (soundskyRkey) playBtn.setAttribute('data-soundskyid', soundskyRkey);
         }
         const playCountEl = cardEl.querySelector('.soundsky-playcount-row span.ml-1');
         if (playCountEl) {
@@ -1530,9 +1550,10 @@ feedContainer.addEventListener('click', async function(e) {
         // First play: fetch blob, init WaveSurfer, then trigger playBtn click
         const did = playBtn.getAttribute('data-did');
         const blobRef = playBtn.getAttribute('data-blob');
-        // Extract post object for incrementLexiconPlayCount
-        const postUri = postCard ? postCard.getAttribute('data-post-uri') : null;
-        const postObj = { uri: postUri };
+        // Extract postUri and soundskyRkey for incrementLexiconPlayCount
+        const postUri = playBtn.getAttribute('data-post-uri');
+        const soundskyRkey = playBtn.getAttribute('data-soundskyid');
+        const postObj = soundskyRkey ? { uri: postUri } : null;
         if (!did || !blobRef || !postUri) {
             console.error('[WaveformPlay] Missing did/blobRef/waveformId/postUri', { did, blobRef, waveformId, postUri });
             return;
@@ -1548,8 +1569,8 @@ feedContainer.addEventListener('click', async function(e) {
             setTimeout(() => {
                 playBtn.click();
             }, 100);
-            // Increment play count using post object
-            incrementLexiconPlayCount(postObj);
+            // Only increment play count if soundskyRkey is present
+            if (postObj) incrementLexiconPlayCount(postObj);
         } catch (err) {
             alert('Failed to load audio: ' + (err.message || err));
         }

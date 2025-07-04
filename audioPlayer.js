@@ -61,6 +61,11 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
         if (placeholder) {
             try { container.removeChild(placeholder); } catch (err) { console.log('Could not remove placeholder', err); }
         }
+        // Also remove the .soundsky-waveform-placeholder if present
+        const wfPlaceholder = container.querySelector('.soundsky-waveform-placeholder');
+        if (wfPlaceholder) {
+            try { container.removeChild(wfPlaceholder); } catch (err) { console.log('Could not remove waveform placeholder', err); }
+        }
         container.style.width = '100%';
         container.style.minWidth = '120px';
         container.style.display = 'block';
