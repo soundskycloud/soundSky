@@ -1542,17 +1542,23 @@ feedContainer.addEventListener('click', async function(e) {
         try {
             console.debug('[WaveformPlay] Calling fetchAudioBlobUrl and initWaveSurfer', { waveformId, did, blobRef });
             const audioUrl = await fetchAudioBlobUrl(did, blobRef);
-            initWaveSurfer(waveformId, audioUrl);
+            const blobSize = playBtn._soundskyLexiconRecord && playBtn._soundskyLexiconRecord.audio && playBtn._soundskyLexiconRecord.audio.size;
+            console.debug('[WaveformPlay] Calling initWaveSurfer with', { waveformId, audioUrl, blobSize });
+            initWaveSurfer(waveformId, audioUrl, blobSize);
             // After a short delay, re-select the playBtn and trigger its click handler
             setTimeout(() => {
                 const btn = postCard ? postCard.querySelector('.soundsky-play-btn') : null;
                 console.debug('[WaveformPlay] Triggering playBtn.click()', { btn });
                 if (btn) btn.click();
             }, 250);
-            // Increment play count using did and rkey
-            incrementLexiconPlayCount(post);
+            // Increment play count using the playBtn's attached post object
+            if (playBtn._soundskyPost) {
+                incrementLexiconPlayCount(playBtn._soundskyPost);
+            } else {
+                console.warn('[WaveformPlay] No _soundskyPost found on playBtn', playBtn);
+            }
         } catch (err) {
-            alert('Failed to load audio: ' + (err.message || err));
+            console.error('Failed to load audio:', err);
         }
     }
 });
