@@ -1,18 +1,15 @@
 // Audio player module for SoundSky
 
 export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
-    console.log('[initWaveSurfer] called', { audioWaveformId, audioBlobUrl, blobSize });
     const container = document.getElementById(audioWaveformId);
-    console.log('[initWaveSurfer] container:', container);
     if (container) {
-        console.log('[initWaveSurfer] container size', { width: container.offsetWidth, height: container.offsetHeight, style: container.style.cssText });
         // Ensure min-width: 100% for all children
         container.style.minWidth = '100%';
         Array.from(container.children).forEach(child => {
             child.style.minWidth = '100%';
         });
     } else {
-        console.log('[initWaveSurfer] container not found for', audioWaveformId);
+        // container not found
     }
     if (!container || !audioBlobUrl) return;
     // Fallback for huge files: use a hidden <audio> element instead of WaveSurfer

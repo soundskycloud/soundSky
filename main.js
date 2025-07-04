@@ -526,6 +526,7 @@ renderSinglePostView = async function(...args) {
 
 // --- New: Increment play count for custom lexicon posts ---
 async function incrementLexiconPlayCount(post) {
+    console.debug('[incrementLexiconPlayCount] called with', post);
     if (!post || !post.uri) return;
     try {
         const uriParts = String(post.uri).replace('at://', '').split('/');
@@ -533,20 +534,23 @@ async function incrementLexiconPlayCount(post) {
         const did = uriParts[0];
         const collection = uriParts[1];
         const rkey = uriParts[2];
+        console.debug('[incrementLexiconPlayCount] did/collection/rkey:', { did, collection, rkey });
         // Fetch the latest record
         const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
+        console.debug('[incrementLexiconPlayCount] getRecord result:', res);
         const record = res.data.value;
         // Ensure stats exists and increment
         if (!record.stats) record.stats = {};
         if (typeof record.stats.plays !== 'number') record.stats.plays = 0;
         record.stats.plays++;
         // Write back the updated record
-        await agent.api.com.atproto.repo.putRecord({
+        const putRes = await agent.api.com.atproto.repo.putRecord({
             repo: did,
             collection,
             rkey,
             record
         });
+        console.debug('[incrementLexiconPlayCount] putRecord result:', putRes);
         // Update the UI immediately (match old selector)
         const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .flex.items-center.text-gray-700 span.ml-1`);
         playCountEls.forEach(el => {
