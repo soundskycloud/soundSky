@@ -505,11 +505,16 @@ renderSinglePostView = async function(...args) {
 };
 
 // --- New: Increment play count for custom lexicon posts ---
-async function incrementLexiconPlayCount({ did, rkey }) {
-    if (!did || !rkey) return;
+async function incrementLexiconPlayCount(post) {
+    if (!post || !post.uri) return;
     try {
+        const uriParts = String(post.uri).replace('at://', '').split('/');
+        if (uriParts.length !== 3) return;
+        const did = uriParts[0];
+        const collection = uriParts[1];
+        const rkey = uriParts[2];
         // Fetch the latest record
-        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection: 'cloud.soundsky.audio', rkey });
+        const res = await agent.api.com.atproto.repo.getRecord({ repo: did, collection, rkey });
         const record = res.data.value;
         // Ensure stats exists and increment
         if (!record.stats) record.stats = {};
@@ -518,22 +523,17 @@ async function incrementLexiconPlayCount({ did, rkey }) {
         // Write back the updated record
         await agent.api.com.atproto.repo.putRecord({
             repo: did,
-            collection: 'cloud.soundsky.audio',
+            collection,
             rkey,
             record
         });
         // Update the UI immediately
-        const postUri = `at://${did}/cloud.soundsky.audio/${rkey}`;
-        const playCountEls = document.querySelectorAll(`[data-post-uri="${postUri}"] .soundsky-playcount-row span.ml-1`);
+        const playCountEls = document.querySelectorAll(`[data-post-uri="${post.uri}"] .flex.items-center.text-gray-700 span.ml-1`);
         playCountEls.forEach(el => {
             el.textContent = record.stats.plays;
         });
     } catch (err) {
-        if (err && err.message && err.message.includes('Could not locate record')) {
-            console.warn('[incrementLexiconPlayCount] Record not found on PDS, skipping increment:', { did, rkey });
-        } else {
-            console.error('Failed to increment play count:', err);
-        }
+        console.error('Failed to increment play count:', err);
     }
 }
 
@@ -1550,7 +1550,7 @@ feedContainer.addEventListener('click', async function(e) {
                 if (btn) btn.click();
             }, 250);
             // Increment play count using did and rkey
-            incrementLexiconPlayCount({ did, rkey });
+            incrementLexiconPlayCount(post);
         } catch (err) {
             alert('Failed to load audio: ' + (err.message || err));
         }
