@@ -56,6 +56,14 @@ export function initWaveSurfer(audioWaveformId, audioBlobUrl, blobSize) {
         return;
     }
     if (container && window.WaveSurfer && audioBlobUrl) {
+        // Remove placeholder before creating WaveSurfer
+        const placeholder = container.querySelector('.soundsky-placeholder-content');
+        if (placeholder) {
+            try { container.removeChild(placeholder); } catch (err) { console.log('Could not remove placeholder', err); }
+        }
+        container.style.width = '100%';
+        container.style.minWidth = '120px';
+        container.style.display = 'block';
         // Destroy any existing instance for this id before creating a new one
         if (window.soundskyWavesurfers[audioWaveformId]) {
             try { window.soundskyWavesurfers[audioWaveformId].destroy(); } catch {}

@@ -1041,6 +1041,12 @@ if (!document.getElementById('soundsky-waveform-placeholder-style')) {
       pointer-events: none;
       user-select: none;
     }
+    .wavesurfer.waveform {
+      min-width: 120px !important;
+      width: 100% !important;
+      max-width: 100vw !important;
+      display: block !important;
+    }
     `;
     document.head.appendChild(style);
 }
