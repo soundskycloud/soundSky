@@ -330,7 +330,7 @@ async function appendAudioPostCard(item, feedGen) {
     let cardHtml;
     try {
         cardHtml = await renderPostCard({
-            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: item.rkey, record, author: user },
+            post: { uri: `at://${did}/cloud.soundsky.audio/${item.rkey}`, cid: record.cid, record, author: user },
             user,
             audioHtml,
             options: { lazyWaveformId: audioWaveformId },
@@ -1502,6 +1502,8 @@ function renderThreadedComments(replies, level = 0) {
 }
 
 // --- Delegated click handler for waveform play buttons in feed/discovery ---
+// REMOVE the following block entirely (no delegated click handler for .soundsky-play-btn):
+/*
 feedContainer.addEventListener('click', async function(e) {
     const playBtn = e.target.closest('.soundsky-play-btn');
     if (playBtn) {
@@ -1559,3 +1561,4 @@ feedContainer.addEventListener('click', async function(e) {
         }
     }
 });
+*/
