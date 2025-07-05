@@ -1738,3 +1738,64 @@ window.incrementLexiconPlayCount = async function(post) {
         console.error('Failed to record play:', err);
     }
 };
+
+// Add DOMContentLoaded handler for artwork file label
+if (typeof window !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('artwork-file');
+    var label = document.getElementById('artwork-file-label');
+    if (input && label) {
+      input.addEventListener('change', function() {
+        label.textContent = input.files && input.files.length ? input.files[0].name : 'Choose Cover Art…';
+      });
+    }
+  });
+}
+// Upload form handler
+const audioPostForm = document.getElementById('audio-post-form');
+if (audioPostForm) {
+  audioPostForm.onsubmit = async function(e) {
+    e.preventDefault();
+    const audioFile = document.getElementById('audio-file').files[0];
+    const artworkFile = document.getElementById('artwork-file').files[0];
+    const title = document.getElementById('meta-title').value.trim();
+    const artist = document.getElementById('meta-artist').value.trim();
+    // Optionally add more metadata fields here
+    const license = document.getElementById('meta-license').value.trim();
+    const tags = document.getElementById('meta-tags').value.trim();
+    const caption = document.getElementById('audio-caption').value.trim();
+    const status = document.getElementById('audio-post-status');
+    if (!audioFile || !title || !artist) {
+      status.textContent = 'Audio, title, and artist are required.';
+      status.className = 'text-red-500 text-sm mt-2';
+      return;
+    }
+    status.textContent = 'Uploading...';
+    status.className = 'text-gray-500 text-sm mt-2';
+    const metadata = {
+      title,
+      artist,
+      ...(license ? { license } : {}),
+      ...(tags ? { tags: tags.split(',').map(t => t.trim()).filter(Boolean) } : {})
+    };
+    try {
+      const result = await uploadSoundSkyAudio(agent, { audioFile, artworkFile, caption, metadata });
+      if (result.success) {
+        status.textContent = 'Upload successful!';
+        status.className = 'text-green-500 text-sm mt-2';
+        // Optionally reset form
+        audioPostForm.reset();
+        document.getElementById('audio-file-label').textContent = 'Choose MP3…';
+        document.getElementById('artwork-file-label').textContent = 'Choose Cover Art…';
+        // Refresh feed
+        fetchSoundskyFeed();
+      } else {
+        status.textContent = 'Upload failed: ' + (result.error || 'Unknown error');
+        status.className = 'text-red-500 text-sm mt-2';
+      }
+    } catch (err) {
+      status.textContent = 'Upload failed: ' + (err.message || err);
+      status.className = 'text-red-500 text-sm mt-2';
+    }
+  };
+}
