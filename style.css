@@ -1,0 +1,414 @@
+/*
+
+# SoundSky Styles
+
+1. Core Tokens
+2. Semantic Tokens [TBD]
+3. CSS Reset [ based on https://www.joshwcomeau.com/css/custom-css-reset/ ]
+2. Atomic Styles
+3. Component Styles [TBD]
+
+*/
+
+/* ---------- ---------- Core Tokens ---------- ---------- */
+
+:root {
+    /* Transparent */
+    --transparent: hsla(0, 0%, 100%, 0);
+
+    /* Black */
+    --black-100: hsla(0, 0%, 0%, 1);
+    --black-80: hsla(0, 0%, 0%, 0.8);
+    --black-60: hsla(0, 0%, 0%, 0.6);
+    --black-40: hsla(0, 0%, 0%, 0.4);
+    --black-25: hsla(0, 0%, 0%, 0.25);
+    --black-10: hsla(0, 0%, 0%, 0.1);
+    --black-05: hsla(0, 0%, 0%, 0.05);
+
+    /* White */
+	--white-100: hsla(0, 0%, 100%, 1);
+    --white-90: hsla(0, 0%, 100%, 0.9);
+    --white-80: hsla(0, 0%, 100%, 0.8);
+    --white-60: hsla(0, 0%, 100%, 0.6);
+    --white-40: hsla(0, 0%, 100%, 0.4);
+    --white-25: hsla(0, 0%, 100%, 0.25);
+    --white-10: hsla(0, 0%, 100%, 0.1);
+    --white-05: hsla(0, 0%, 100%, 0.05);
+
+    /* Blue  - for interactions and high attention */
+    --blue-100: hsla(230, 100%, 50%, 1);
+    --blue-80: hsla(230, 100%, 50%, 0.8);
+    --blue-60: hsla(230, 100%, 50%, 0.6);
+    --blue-40: hsla(230, 100%, 50%, 0.4);
+    --blue-25: hsla(230, 100%, 50%, 0.25);
+    --blue-10: hsla(230, 100%, 50%, 0.1);
+    --blue-06: hsla(230, 100%, 50%, 0.06);
+    --blue-03: hsla(230, 100%, 50%, 0.03);
+    --blue-dank: linear-gradient(var(--black-25), var(--black-25)), var(--blue-100);
+    --blue-wash: linear-gradient(var(--white-90), var(--white-90)), var(--blue-100);
+    --blue-accent: hsla(188, 86%, 53%, 1);
+
+    /* red - for alerts and errors */
+    --red-100: hsla(347, 77%, 50%, 1);
+    --red-80: hsla(347, 77%, 50%, 0.8);
+    --red-60: hsla(347, 77%, 50%, 0.6);
+    --red-40: hsla(347, 77%, 50%, 0.4);
+    --red-25: hsla(347, 77%, 50%, 0.25);
+    --red-10: hsla(347, 77%, 50%, 0.1);
+    --red-06: hsla(347, 77%, 50%, 0.06);
+    --red-dank: linear-gradient(var(--black-25), var(--black-25)), var(--red-100);
+    --red-accent: hsla(347, 100%, 85%, 1);
+
+    /* amber - for information and updates*/
+    --amber-100: hsla(38, 92%, 50%, 1);
+    --amber-80: hsla(38, 92%, 50%, 0.8);
+    --amber-60: hsla(38, 92%, 50%, 0.6);
+    --amber-40: hsla(38, 92%, 50%, 0.4);
+    --amber-25: hsla(38, 92%, 50%, 0.25);
+    --amber-10: hsla(38, 92%, 50%, 0.1);
+    --amber-06: hsla(38, 92%, 50%, 0.06);
+    --amber-dank: linear-gradient(var(--black-25), var(--black-25)), var(--amber-100);
+    --amber-accent: hsla(50, 98%, 64%, 1);
+}
+
+/* Size */
+:root {
+    --size-0: 0px;
+    --size-1: 1px;
+    --size-2: 2px;
+    --size-4: 4px;
+    --size-8: 8px;
+    --size-12: 12px;
+    --size-14: 14px;
+    --size-16: 16px;
+    --size-20: 20px;
+    --size-24: 24px;
+    --size-32: 32px;
+    --size-40: 40px;
+    --size-48: 48px;
+    --size-56: 56px;
+    --size-64: 64px;
+    --size-72: 72px;
+    --size-80: 80px;
+    --size-88: 88px;
+    --size-96: 96px;
+    --size-max: 100%;
+  }
+
+/* Space */
+:root {
+    --space-0: var(--size-0);
+    --space-1: var(--size-1);
+    --space-2: var(--size-2);
+    --space-4: var(--size-4);
+    --space-8: var(--size-8);
+    --space-12: var(--size-12);
+    --space-16: var(--size-16);
+    --space-24: var(--size-24);
+    --space-32: var(--size-32);
+    --space-40: var(--size-40);
+    --space-48: var(--size-48);
+    --space-64: var(--size-64);
+  }
+
+/* Radius */
+:root {
+    --radius-0: var(--size-0);
+    --radius-2: var(--size-2);
+    --radius-4: var(--size-4);
+    --radius-8: var(--size-8);
+    --radius-12: var(--size-12);
+    --radius-100: var(--size-max);
+  }
+
+/* ---------- ---------- RESET ---------- ---------- */
+/* by https://www.joshwcomeau.com/css/custom-css-reset/ */
+
+/* 1. Use a more-intuitive box-sizing model */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* 2. Remove default margin */
+* {
+  margin: 0;
+}
+
+/* 3. Enable keyword animations */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    interpolate-size: allow-keywords;
+  }
+}
+
+body {
+  /* 4. Add accessible line-height */
+  line-height: 1.5;
+  /* 5. Improve text rendering */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 6. Improve media defaults */
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* 7. Inherit fonts for form controls */
+input, button, textarea, select {
+  font: inherit;
+}
+
+/* 8. Avoid text overflows */
+p, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
+
+/* 9. Improve line wrapping */
+p {
+  text-wrap: pretty;
+}
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
+}
+
+/*
+  10. Create a root stacking context
+*/
+#root, #__next {
+  isolation: isolate;
+}
+
+/* ---------- ---------- Atomic Styles ---------- ---------- */
+
+html,
+body {
+	height: var(--size-max);
+    width: var(--size-max);
+	margin: 0;
+	padding: 0;
+	font-family: 'Inter', sans-serif;
+    font-size: var(--size-16);
+    line-height: var(--size-24);
+    font-optical-sizing: auto;
+    font-style: normal;
+
+	background: var(--white-100);
+    transition: all 100ms linear;
+}
+
+h1 {
+    display: block;
+    font-size: var(--size-24);
+    line-height: var(--size-32);
+    margin-block-start: 0;
+    margin-block-end: 0;
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+    font-weight:normal;
+    font-weight: 800;
+}
+
+/* :focus,
+:focus-visible {
+	outline-color: var(--amber-60);
+    outline-offset: var(--space-2);
+    outline-width: var(--size-4);
+} */
+
+input {
+	background: var(--blue-06);
+	border-radius: var(--radius-4);
+	color: var(--black-100);
+	padding: var(--space-16) var(--space-12);
+    border: 1px solid var(--blue-40);
+    font-size: var(--size-16);
+    line-height: var(--size-24);
+	font-weight: 500;
+
+}
+
+input:hover,
+input:focus,
+input:focus-visible {
+	border: 1px solid var(--blue-100);
+	background: var(--white-100);
+}
+
+input:disabled {
+	border: 1px solid var(--black-10);
+	background: var(--black-05);
+    color: var(--black-40);
+}
+
+button {
+	padding: var(--space-16) var(--space-16);
+	background: var(--blue-10);
+	color: var(--blue-100);
+	border: var(--size-1) solid var(--blue-100);
+	border-radius:  var(--radius-4);
+	font-size: var(--size-16);
+	font-weight: 600;
+	/* transition: background 0.2s; */
+    cursor: pointer;
+}
+
+button.primary {
+	width: var(--size-max);
+	background: var(--blue-dank);
+	color: var(--white-100);
+	border: none;
+	border-radius:  var(--radius-4);
+}
+
+button.primary:hover,
+button.primary:focus,
+button.primary:focus-visible {
+	background:var(--blue-100);
+	color: var(--white-100);
+}
+
+a {
+	color: var(--black-100);
+    text-decoration: underline;
+}
+
+a:hover,
+a:focus,
+a:focus-visible {
+	color: var(--blue-100);
+}
+
+.card {
+    background: var(--white-100);
+	border-radius: var(--radius-12);
+	display: flex;
+    flex-direction: column;
+    gap: var(--space-16);
+    padding: var(--space-32) var(--space-32) var(--space-40) var(--space-32);
+}
+
+/* ---------- ---------- Component Styles ---------- ---------- */
+
+/* Page -- Log In */
+
+/* .video-bg {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	object-fit: cover;
+	z-index: 0;
+	filter: blur(1px);
+} */
+
+.view-app {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+/* .app.video-bg video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+  pointer-events: none;
+} */
+
+.login-container {
+    min-width: 480px;
+	max-width: 480px;
+    position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 2;
+}
+
+.login-form {
+    display: flex;
+    min-width: 100%;
+    flex-direction: column;
+    gap: var(--space-8);
+}
+
+.login-title {
+	font-size: var(--size-24);
+    line-height: var(--size-32);
+	font-weight: 700;
+	color: var(--black-100);
+}
+
+.login-label {
+	font-size: var(--size-16);
+	color: var(--black-100);
+	font-weight: 500;
+	display: block;
+	text-align: left;
+}
+
+.login-error {
+    font-size: var(--size-14);
+    line-height: var(--space-24);
+	color: var(--red-100);
+	display: none;
+	text-align: left;
+	width: 100%;
+}
+.login-help {
+	font-size: var(--size-14);
+    line-height: var(--space-24);
+	text-align: left;
+	width: 100%;
+}
+
+
+
+@media (max-width: 480px) {
+	html,
+	body {
+		background: var(--white-100);
+		min-width: 100vw;
+		min-height: 100vh;
+		overflow: auto;
+	}
+
+	.video-bg {
+		display: none;
+	}
+
+	.login-container {
+		min-width: 100vw;
+		max-width: 100vw;
+		padding:0;
+		top: 0;
+		left: 0;
+		transform: none;
+		position: fixed;
+		height: 100vh;
+		justify-content: center;
+
+		display: flex;
+	}
+
+    .flex-col-8 {
+        display: flex;
+        min-width: 100%;
+        flex-direction: column;
+        gap: var(--space-8);
+    }
+    .card {
+        border-radius: 0;
+        box-shadow: none;
+        gap: var(--space-16);
+        padding: var(--space-32) var(--space-32) var(--space-40) var(--space-32);
+    }
+
+}
