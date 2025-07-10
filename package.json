@@ -1,0 +1,25 @@
+{
+  "name": "soundsky-1",
+  "version": "1.0.0",
+  "description": "<a href=\"https://soundsky.cloud\">   <img src=\"https://github.com/user-attachments/assets/5435b310-9e43-40e6-b125-2cc071099c30\" width=\"600\" > </a>",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundskycloud/soundSky.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/soundskycloud/soundSky/issues"
+  },
+  "homepage": "https://github.com/soundskycloud/soundSky#readme",
+  "devDependencies": {
+    "eslint": "^9.30.1",
+    "globals": "^16.3.0"
+  }
+}
